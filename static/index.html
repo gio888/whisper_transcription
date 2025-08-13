@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Transcribe audio files locally using Whisper. Supports English and Filipino/Tagalog.">
+    <title>Whisper Audio Transcription - Local Processing</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <main id="main-content" class="container" role="main">
+        <header role="banner">
+            <h1><span aria-hidden="true">🎙️</span> Audio Transcription</h1>
+            <p>Drop your audio file here for instant transcription</p>
+            <p class="subtitle">Supports M4A, MP3, WAV • English and Filipino/Tagalog • Max 500MB</p>
+        </header>
+
+        <section aria-labelledby="upload-heading">
+            <h2 id="upload-heading" class="visually-hidden">Upload Audio File</h2>
+            <div id="dropZone" 
+                 class="drop-zone"
+                 role="button"
+                 tabindex="0"
+                 aria-label="Upload audio file. Press Space or Enter to browse files, or drag and drop your audio file here"
+                 aria-describedby="file-requirements">
+                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p class="drop-text">Drop audio file here or click to browse</p>
+                <p id="file-requirements" class="drop-hint">
+                    <strong>Accepted formats:</strong> M4A, MP3, WAV, AAC, MP4<br>
+                    <strong>Maximum size:</strong> 500MB
+                </p>
+                <input type="file" id="fileInput" accept=".m4a,.mp3,.wav,.aac,.mp4" aria-label="Choose audio file" hidden>
+            </div>
+        </section>
+
+        <section id="progressSection" class="progress-section" style="display: none;" aria-labelledby="progress-heading" aria-live="polite">
+            <h2 id="progress-heading" class="visually-hidden">Transcription Progress</h2>
+            <div class="file-info">
+                <span class="file-name" id="fileName"></span>
+                <span class="file-size" id="fileSize"></span>
+            </div>
+            
+            <div class="progress-container" 
+                 role="progressbar" 
+                 aria-valuenow="0" 
+                 aria-valuemin="0" 
+                 aria-valuemax="100"
+                 aria-label="Transcription progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            
+            <div class="status-message" id="statusMessage" aria-live="polite">Preparing...</div>
+            <div class="time-estimate" id="timeEstimate" aria-live="polite"></div>
+        </section>
+
+        <section id="resultSection" class="result-section" style="display: none;" aria-labelledby="result-heading">
+            <h2 id="result-heading"><span aria-hidden="true">✅</span> Transcription Complete</h2>
+            <div class="transcript-preview" id="transcriptPreview" aria-label="Transcript preview"></div>
+            <div class="action-buttons">
+                <button id="downloadBtn" class="btn btn-primary" aria-label="Download transcript as text file">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Download Transcript
+                </button>
+                <button id="newFileBtn" class="btn btn-secondary" aria-label="Start new transcription">
+                    Transcribe Another File
+                </button>
+            </div>
+        </section>
+
+        <section id="errorSection" class="error-section" style="display: none;" role="alert" aria-labelledby="error-heading">
+            <h2 id="error-heading"><span aria-hidden="true">❌</span> Error</h2>
+            <p id="errorMessage"></p>
+            <div id="errorHelp" class="error-help"></div>
+            <button id="retryBtn" class="btn btn-secondary" aria-label="Try transcription again">Try Again</button>
+        </section>
+    </main>
+
+    <footer role="contentinfo">
+        <p>Powered by Whisper.cpp • Running locally on your machine • Processing time ≈ audio duration</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

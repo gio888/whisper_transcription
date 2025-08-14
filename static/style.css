@@ -359,3 +359,337 @@ footer {
         outline-offset: 2px;
     }
 }
+
+/* Batch Processing Styles */
+.batch-section {
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.batch-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2d3748;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.batch-summary {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.batch-stats {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-number {
+    display: block;
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #667eea;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.batch-progress-container {
+    background: #e2e8f0;
+    border-radius: 0.75rem;
+    height: 12px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.batch-progress-bar {
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    height: 100%;
+    width: 0%;
+    transition: width 0.5s ease;
+    border-radius: 0.75rem;
+}
+
+.batch-status {
+    text-align: center;
+    font-weight: 600;
+    color: #4a5568;
+    font-size: 1rem;
+}
+
+.current-file-section {
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.current-file-heading {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 1rem;
+}
+
+.current-file-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.current-file-name {
+    font-weight: 600;
+    color: #4a5568;
+    flex: 1;
+    margin-right: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.current-file-progress {
+    font-weight: 600;
+    color: #667eea;
+    font-size: 0.875rem;
+}
+
+.current-file-progress-container {
+    background: #e2e8f0;
+    border-radius: 0.5rem;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.current-file-progress-bar {
+    background: linear-gradient(90deg, #48bb78 0%, #38a169 100%);
+    height: 100%;
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 0.5rem;
+}
+
+.current-file-status {
+    font-size: 0.875rem;
+    color: #718096;
+    font-style: italic;
+}
+
+.file-queue-section {
+    margin-top: 1.5rem;
+}
+
+.queue-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.queue-header h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.toggle-queue-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #718096;
+    transition: all 0.3s ease;
+}
+
+.toggle-queue-btn:hover {
+    background: #f7fafc;
+    border-color: #cbd5e0;
+    color: #4a5568;
+}
+
+.queue-toggle-icon {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.3s ease;
+}
+
+.toggle-queue-btn.expanded .queue-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.file-queue {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    transition: background-color 0.2s ease;
+}
+
+.file-item:last-child {
+    border-bottom: none;
+}
+
+.file-item.processing {
+    background: #f0fff4;
+}
+
+.file-item.completed {
+    background: #f0fff4;
+}
+
+.file-item.error {
+    background: #fff5f5;
+}
+
+.file-status-icon {
+    width: 24px;
+    height: 24px;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+
+.file-status-icon.queued {
+    color: #718096;
+}
+
+.file-status-icon.processing {
+    color: #667eea;
+    animation: spin 2s linear infinite;
+}
+
+.file-status-icon.completed {
+    color: #48bb78;
+}
+
+.file-status-icon.error {
+    color: #f56565;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.file-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-weight: 600;
+    color: #2d3748;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.25rem;
+}
+
+.file-meta {
+    font-size: 0.75rem;
+    color: #718096;
+    display: flex;
+    gap: 1rem;
+}
+
+.file-progress {
+    margin-left: 1rem;
+    text-align: right;
+    min-width: 80px;
+}
+
+.file-progress-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.file-error {
+    font-size: 0.75rem;
+    color: #e53e3e;
+    margin-top: 0.25rem;
+    font-style: italic;
+}
+
+/* Mobile optimizations for batch interface */
+@media (max-width: 768px) {
+    .batch-stats {
+        gap: 1rem;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+    }
+    
+    .current-file-info {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .current-file-name {
+        margin-right: 0;
+        white-space: normal;
+        word-break: break-all;
+    }
+    
+    .file-meta {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .batch-stats {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .queue-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+    
+    .toggle-queue-btn {
+        justify-content: center;
+    }
+    
+    .file-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+    
+    .file-progress {
+        margin-left: 0;
+        text-align: left;
+        min-width: auto;
+    }
+}

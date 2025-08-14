@@ -69,9 +69,16 @@ class WhisperTranscriber:
     async def transcribe_with_progress(
         self, 
         audio_path: Path,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[callable] = None,
+        original_path: Optional[str] = None
     ) -> AsyncGenerator[dict, None]:
-        """Transcribe audio file with progress updates"""
+        """Transcribe audio file with progress updates
+        
+        Args:
+            audio_path: Path to the uploaded audio file
+            progress_callback: Optional callback for progress updates
+            original_path: Original file path to save transcript next to source file
+        """
         
         # Convert to WAV if needed
         if audio_path.suffix.lower() != ".wav":
@@ -87,8 +94,15 @@ class WhisperTranscriber:
         # Get duration for progress calculation
         duration = await self.get_duration(wav_path)
         
-        # Prepare output file
-        output_txt = UPLOAD_DIR / f"{audio_path.stem}_transcript.txt"
+        # Determine output file location
+        if original_path:
+            # Save transcript next to original file
+            original_file_path = Path(original_path)
+            output_txt = original_file_path.parent / f"{original_file_path.stem}.txt"
+            logger.info(f"Saving transcript to original location: {output_txt}")
+        else:
+            # Default behavior: save in upload directory
+            output_txt = UPLOAD_DIR / f"{audio_path.stem}_transcript.txt"
         
         # Build whisper command
         cmd = [
@@ -156,15 +170,36 @@ class WhisperTranscriber:
             wav_path.unlink()
         
         # Read final transcript
-        if output_txt.exists():
-            with open(output_txt, 'r', encoding='utf-8') as f:
+        temp_output = UPLOAD_DIR / f"{audio_path.stem}_transcript.txt"
+        
+        if temp_output.exists():
+            with open(temp_output, 'r', encoding='utf-8') as f:
                 transcript = f.read()
+            
+            # If we need to save to original location, copy the file there
+            final_output_path = temp_output
+            if original_path and output_txt != temp_output:
+                try:
+                    # Ensure the original directory exists
+                    output_txt.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # Copy transcript to original location
+                    with open(output_txt, 'w', encoding='utf-8') as f:
+                        f.write(transcript)
+                    
+                    final_output_path = output_txt
+                    logger.info(f"Transcript saved to: {output_txt}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to save transcript to original location: {e}")
+                    # Fall back to temp location if original save fails
+                    pass
             
             yield {
                 "status": "completed",
                 "progress": 100,
                 "transcript": transcript,
-                "output_file": str(output_txt)
+                "output_file": str(final_output_path)
             }
         else:
             yield {

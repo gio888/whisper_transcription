@@ -1,64 +1,211 @@
 # Whisper Transcription Web Service
 
-Simple drag-and-drop web interface for transcribing M4A files using whisper.cpp locally on your Mac.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-black.svg)](https://www.apple.com/mac/)
 
-## Features
-- 🎯 Drag-and-drop M4A files directly in browser
-- 🌐 Supports English and Filipino/Tagalog mixed audio
-- 📊 Real-time transcription progress
-- 💾 Download transcripts as text files
-- 🔒 Fully local - no cloud services required
-- ⚡ Optimized for Apple Silicon
+A modern web-based interface for transcribing audio files locally using OpenAI's Whisper. Built for privacy-conscious users who want powerful speech-to-text capabilities without sending data to external services.
 
-## Prerequisites
+## ✨ Features
+
+### 🎯 **Batch Processing (NEW)**
+- **Multi-file Upload**: Drag and drop multiple audio files for overnight processing
+- **Sequential Processing**: Files process one-by-one to prevent system overload
+- **Auto-save**: Transcripts save automatically next to original files as `filename.txt`
+- **Smart Error Handling**: Failed files are skipped, batch continues processing
+
+### 🌟 **Core Features**
+- **Drag & Drop Interface**: Clean, accessible web interface with real-time progress
+- **Multi-language Support**: Optimized for English and Filipino/Tagalog mixed audio
+- **Fully Local**: No cloud services, no API keys, complete privacy
+- **Apple Silicon Optimized**: Metal acceleration for M1/M2 Macs
+- **Mobile Friendly**: Responsive design for monitoring progress on any device
+
+### 🎨 **User Experience**
+- **WCAG 2.1 AA Compliant**: Full accessibility with screen reader support
+- **Keyboard Navigation**: Complete keyboard accessibility
+- **Real-time Progress**: WebSocket-powered progress updates
+- **Error Recovery**: Graceful error handling with actionable messages
+
+## 📋 Prerequisites
+
+### Required Software
 ```bash
 # Install whisper.cpp
 brew install whisper-cpp
 
 # Install ffmpeg for audio conversion
 brew install ffmpeg
+
+# Python 3.8+ (usually pre-installed on macOS)
+python3 --version
 ```
 
-## Setup
+### Supported Formats
+- **Primary**: M4A (Apple's format from Voice Memos/Notes)
+- **Also Supported**: MP3, WAV, AAC, MP4
+- **Max File Size**: 500MB per file
+
+## 🚀 Quick Start
+
+### 1. Clone and Setup
 ```bash
-# 1. Run setup script (downloads model, installs dependencies)
+git clone https://github.com/gio888/whisper_transcription.git
+cd whisper_transcription
+
+# One-command setup (downloads model + installs dependencies)
 ./setup.sh
-
-# 2. Start the service
-./run.sh
-
-# 3. Open browser to http://localhost:8000
 ```
 
-## Usage
-1. Open http://localhost:8000 in your browser
-2. Drag and drop your M4A file onto the upload zone
+### 2. Start the Service
+```bash
+./run.sh
+```
+
+### 3. Open in Browser
+Navigate to http://localhost:8000
+
+## 📖 Usage
+
+### Single File Transcription
+1. Open http://localhost:8000
+2. Drag and drop your audio file onto the upload zone
 3. Watch real-time progress as it transcribes
 4. Download the completed transcript
 
-## Supported Formats
-- M4A (primary)
-- MP3, WAV, AAC, MP4
+### Batch Processing (NEW)
+1. Drag multiple audio files at once onto the upload zone
+2. Files are queued and processed sequentially
+3. Each transcript automatically saves next to its source file
+4. Monitor overall progress and individual file status
+5. Perfect for overnight processing of large batches
 
-## Technical Details
-- Backend: FastAPI with WebSocket support
-- Model: Whisper small.bin (461MB, multilingual)
-- Processing: whisper.cpp with Metal acceleration
-- Max file size: 500MB
+### Keyboard Shortcuts
+- **Tab**: Navigate through interface
+- **Space/Enter**: Open file picker when drop zone is focused
+- **Escape**: Cancel current operation
 
-## Troubleshooting
+## ⚙️ Technical Details
 
-### If transcription shows Spanish instead of Filipino:
-The model is correctly configured to expect English with Filipino/Tagalog. This is handled automatically.
+### Architecture
+- **Backend**: FastAPI with async WebSocket support
+- **Frontend**: Vanilla JavaScript (no build tools required)
+- **AI Model**: Whisper small.bin (461MB, multilingual)
+- **Processing**: whisper.cpp with Metal GPU acceleration
+- **Dependencies**: Isolated Python virtual environment
 
-### If the service won't start:
+### Performance
+- **Processing Speed**: ~1x realtime on Apple Silicon (1 hour audio ≈ 1 hour processing)
+- **Memory Usage**: ~2GB RAM during processing
+- **GPU Acceleration**: Automatic Metal backend on M1/M2 Macs
+- **Concurrent Batches**: Sequential processing prevents thermal throttling
+
+### File Structure
+```
+whisper_transcription/
+├── app.py              # FastAPI server
+├── transcriber.py      # Whisper integration
+├── config.py          # Configuration
+├── static/            # Web interface
+│   ├── index.html     # Main UI
+│   ├── app.js         # Client logic
+│   └── style.css      # Styling
+├── setup.sh           # Installation script
+├── run.sh            # Start script
+└── requirements.txt   # Python dependencies
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Service Won't Start**
 ```bash
 # Check if port 8000 is in use
 lsof -i :8000
 
-# Install Python dependencies manually
-pip3 install fastapi uvicorn python-multipart websockets aiofiles
+# Kill any existing process
+kill -9 $(lsof -ti:8000)
 ```
 
-### For long audio files:
-Processing time is approximately 1:1 with audio length on M1/M2 Macs (1 hour audio = ~1 hour processing)
+**Missing Dependencies**
+```bash
+# Reinstall dependencies
+./setup.sh
+
+# Or manually install
+pip3 install -r requirements.txt
+```
+
+**Transcription Errors**
+```bash
+# Verify whisper.cpp installation
+whisper-cpp --help
+
+# Check model file
+ls -la models/small.bin
+```
+
+**Performance Issues**
+```bash
+# Check CPU temperature
+sudo powermetrics -n 1 --samplers smc -a
+
+# Monitor memory usage
+activity monitor
+```
+
+### Getting Help
+
+1. Check the [CHANGELOG.md](CHANGELOG.md) for recent updates
+2. Search existing [GitHub Issues](https://github.com/gio888/whisper_transcription/issues)
+3. Create a new issue with:
+   - Your macOS version
+   - Audio file format and size
+   - Complete error messages
+   - Steps to reproduce
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Development setup
+- Code style guidelines
+- Pull request process
+- Testing requirements
+
+### Quick Development Setup
+```bash
+# Clone and setup development environment
+git clone https://github.com/gio888/whisper_transcription.git
+cd whisper_transcription
+./setup.sh
+
+# Run tests (when implemented)
+python -m pytest
+
+# Start development server with auto-reload
+python app.py
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [OpenAI Whisper](https://github.com/openai/whisper) for the incredible speech recognition model
+- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) for the efficient local implementation
+- [FastAPI](https://fastapi.tiangolo.com/) for the modern web framework
+- The open source community for continuous inspiration
+
+## 🔗 Related Projects
+
+- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) - C++ implementation of Whisper
+- [OpenAI Whisper](https://github.com/openai/whisper) - Original Python implementation
+- [faster-whisper](https://github.com/guillaumekln/faster-whisper) - Alternative efficient implementation
+
+---
+
+**Built with ❤️ for privacy-conscious transcription**
+
+Star ⭐ this repo if you find it useful!

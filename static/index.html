@@ -12,8 +12,8 @@
     <main id="main-content" class="container" role="main">
         <header role="banner">
             <h1><span aria-hidden="true">🎙️</span> Audio Transcription</h1>
-            <p>Drop your audio file here for instant transcription</p>
-            <p class="subtitle">Supports M4A, MP3, WAV • English and Filipino/Tagalog • Max 500MB</p>
+            <p>Drop audio files here for instant transcription</p>
+            <p class="subtitle">Single or multiple files • M4A, MP3, WAV, AAC, MP4 • English and Filipino/Tagalog • Max 500MB each</p>
         </header>
 
         <section aria-labelledby="upload-heading">
@@ -22,22 +22,23 @@
                  class="drop-zone"
                  role="button"
                  tabindex="0"
-                 aria-label="Upload audio file. Press Space or Enter to browse files, or drag and drop your audio file here"
+                 aria-label="Upload audio files. Press Space or Enter to browse files, or drag and drop your audio files here. Supports multiple files for batch processing."
                  aria-describedby="file-requirements">
                 <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="17 8 12 3 7 8"></polyline>
                     <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
-                <p class="drop-text">Drop audio file here or click to browse</p>
+                <p class="drop-text">Drop audio files here or click to browse</p>
                 <p id="file-requirements" class="drop-hint">
                     <strong>Accepted formats:</strong> M4A, MP3, WAV, AAC, MP4<br>
                     <strong>Maximum size:</strong> 500MB
                 </p>
-                <input type="file" id="fileInput" accept=".m4a,.mp3,.wav,.aac,.mp4" aria-label="Choose audio file" hidden>
+                <input type="file" id="fileInput" accept=".m4a,.mp3,.wav,.aac,.mp4" aria-label="Choose audio files" multiple hidden>
             </div>
         </section>
 
+        <!-- Single File Progress (Legacy) -->
         <section id="progressSection" class="progress-section" style="display: none;" aria-labelledby="progress-heading" aria-live="polite">
             <h2 id="progress-heading" class="visually-hidden">Transcription Progress</h2>
             <div class="file-info">
@@ -56,6 +57,75 @@
             
             <div class="status-message" id="statusMessage" aria-live="polite">Preparing...</div>
             <div class="time-estimate" id="timeEstimate" aria-live="polite"></div>
+        </section>
+        
+        <!-- Batch Processing Interface -->
+        <section id="batchSection" class="batch-section" style="display: none;" aria-labelledby="batch-heading" aria-live="polite">
+            <h2 id="batch-heading" class="batch-title">Batch Transcription</h2>
+            
+            <!-- Batch Summary -->
+            <div class="batch-summary">
+                <div class="batch-stats">
+                    <span class="stat-item">
+                        <span class="stat-number" id="batchTotal">0</span>
+                        <span class="stat-label">Total Files</span>
+                    </span>
+                    <span class="stat-item">
+                        <span class="stat-number" id="batchCompleted">0</span>
+                        <span class="stat-label">Completed</span>
+                    </span>
+                    <span class="stat-item">
+                        <span class="stat-number" id="batchFailed">0</span>
+                        <span class="stat-label">Failed</span>
+                    </span>
+                </div>
+                
+                <!-- Overall Progress -->
+                <div class="batch-progress-container" 
+                     role="progressbar" 
+                     aria-valuenow="0" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100"
+                     aria-label="Overall batch progress">
+                    <div class="batch-progress-bar" id="batchProgressBar"></div>
+                </div>
+                
+                <div class="batch-status" id="batchStatus" aria-live="polite">Preparing batch...</div>
+            </div>
+            
+            <!-- Current File Being Processed -->
+            <div class="current-file-section" id="currentFileSection" style="display: none;">
+                <h3 class="current-file-heading">Currently Processing</h3>
+                <div class="current-file-info">
+                    <span class="current-file-name" id="currentFileName"></span>
+                    <span class="current-file-progress" id="currentFileProgress">0%</span>
+                </div>
+                <div class="current-file-progress-container" 
+                     role="progressbar" 
+                     aria-valuenow="0" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100"
+                     aria-label="Current file progress">
+                    <div class="current-file-progress-bar" id="currentFileProgressBar"></div>
+                </div>
+                <div class="current-file-status" id="currentFileStatus" aria-live="polite"></div>
+            </div>
+            
+            <!-- File Queue -->
+            <div class="file-queue-section">
+                <div class="queue-header">
+                    <h3>File Queue</h3>
+                    <button id="toggleQueue" class="toggle-queue-btn" aria-label="Toggle file queue visibility">
+                        <span class="queue-toggle-text">Show Details</span>
+                        <svg class="queue-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                </div>
+                <div class="file-queue" id="fileQueue" style="display: none;">
+                    <!-- File items will be populated by JavaScript -->
+                </div>
+            </div>
         </section>
 
         <section id="resultSection" class="result-section" style="display: none;" aria-labelledby="result-heading">

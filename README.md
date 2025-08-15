@@ -65,6 +65,15 @@ cd whisper_transcription
 ### 3. Open in Browser
 Navigate to http://localhost:8000
 
+### 4. Run Tests (Recommended before batch processing)
+```bash
+# Quick smoke test (5 seconds) - Run this before overnight batches!
+python smoke_test.py
+
+# Full test suite
+pytest -v
+```
+
 ## 📖 Usage
 
 ### Single File Transcription
@@ -155,11 +164,21 @@ sudo powermetrics -n 1 --samplers smc -a
 activity monitor
 ```
 
+### Testing
+
+See [README_TESTING.md](README_TESTING.md) for comprehensive testing documentation.
+
+**Quick Test Before Batch Processing:**
+```bash
+python smoke_test.py  # Takes 5 seconds, catches critical errors
+```
+
 ### Getting Help
 
 1. Check the [CHANGELOG.md](CHANGELOG.md) for recent updates
-2. Search existing [GitHub Issues](https://github.com/gio888/whisper_transcription/issues)
-3. Create a new issue with:
+2. Review [README_TESTING.md](README_TESTING.md) for testing guidance
+3. Search existing [GitHub Issues](https://github.com/gio888/whisper_transcription/issues)
+4. Create a new issue with:
    - Your macOS version
    - Audio file format and size
    - Complete error messages
@@ -180,8 +199,11 @@ git clone https://github.com/gio888/whisper_transcription.git
 cd whisper_transcription
 ./setup.sh
 
-# Run tests (when implemented)
-python -m pytest
+# Install test dependencies
+pip install -r requirements-test.txt
+
+# Run tests
+pytest -v
 
 # Start development server with auto-reload
 python app.py

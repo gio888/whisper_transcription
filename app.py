@@ -71,6 +71,20 @@ class BatchFile:
     error_message: Optional[str] = None
     transcript_path: Optional[str] = None
     progress: int = 0
+    
+    def to_dict(self):
+        """Convert to dictionary for JSON serialization"""
+        return {
+            "id": self.id,
+            "original_name": self.original_name,
+            "original_path": self.original_path,
+            "file_path": str(self.file_path),
+            "size": self.size,
+            "status": self.status.value,
+            "error_message": self.error_message,
+            "transcript_path": self.transcript_path,
+            "progress": self.progress
+        }
 
 @dataclass
 class BatchJob:
@@ -325,7 +339,7 @@ async def process_batch(batch_id: str):
             "completed_files": batch_job.completed_files,
             "failed_files": batch_job.failed_files,
             "current_file_index": batch_job.current_file_index,
-            "files": [asdict(f) for f in batch_job.files]
+            "files": [f.to_dict() for f in batch_job.files]
         })
         
         # Process each file sequentially
@@ -393,7 +407,7 @@ async def process_batch(batch_id: str):
                 "file_id": batch_file.id,
                 "status": batch_file.status.value,
                 "error_message": batch_file.error_message,
-                "transcript_path": batch_file.transcript_path
+                "transcript_path": str(batch_file.transcript_path) if batch_file.transcript_path else None
             })
         
         # Send batch completion

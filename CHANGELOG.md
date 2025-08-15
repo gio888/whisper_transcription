@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-01-15
+
+### Added
+- **Comprehensive Test Suite**: Full testing infrastructure with pytest, preventing runtime errors
+- **Smoke Test Script**: Quick 5-second validation before overnight batch processing
+- **Unit Tests**: Data model serialization tests that catch JSON encoding issues
+- **Integration Tests**: API endpoint validation for upload and batch processing
+- **WebSocket Tests**: Real-time message serialization validation
+- **Mock Transcriber**: Fast testing without actual Whisper processing
+- **GitHub Actions CI**: Automated testing on every commit and pull request
+- **Test Coverage Reporting**: HTML coverage reports with pytest-cov
+- **Testing Documentation**: Complete testing guide with pre-deployment checklist
+
+### Fixed
+- **Critical Bug Fix**: PosixPath JSON serialization error in batch processing WebSocket messages
+- **BatchFile Serialization**: Added proper `to_dict()` method to handle Path objects correctly
+- **WebSocket Messages**: Fixed transcript_path serialization in file completion messages
+
+### Technical
+- **Test Dependencies**: Added pytest, pytest-asyncio, pytest-cov, httpx, pytest-mock, faker
+- **Test Configuration**: pytest.ini with asyncio auto mode and coverage settings
+- **CI/CD Pipeline**: Multi-version Python testing (3.10, 3.11, 3.12) with caching
+
 ## [2.0.0] - 2025-01-13
 
 ### Added

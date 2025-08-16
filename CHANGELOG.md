@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-01-16
+
+### Fixed
+- **CRITICAL: Batch Processing Hang**: Fixed async generator consumption bug that caused batch processing to hang indefinitely
+- **Whisper Command**: Updated from deprecated `whisper-cpp` to `whisper-cli` 
+- **Conversion Progress**: Fixed audio conversion progress not properly yielding, causing UI to show 100% while stuck
+- **Timeout Protection**: Added proper timeout handling to prevent infinite waits during transcription
+- **Debug Logging**: Enhanced logging to track actual progress and identify bottlenecks
+
+### Added
+- **Real Test Suite**: Created tests with ACTUAL audio files that catch real bugs (not theatrical mocks)
+- **Reproducer Tests**: Added tests that specifically catch the hanging bug that wasted 12 hours
+- **Test Data**: Added real .m4a audio files for testing (tests/test_data/)
+- **Working Batch Test**: Comprehensive end-to-end batch processing test with real files
+
+### Technical
+- **Async Generator Fix**: Properly yield conversion status updates in transcribe_with_progress()
+- **Process Timeout**: Added 5-second readline timeout and 1-hour total process timeout
+- **Error Recovery**: Better error handling for conversion and transcription failures
+- **Test Verification**: Tests now use real audio files and verify actual functionality
+
+### Removed
+- **Fake Tests**: Previous "comprehensive" tests that used mocked transcriber and fake data proved inadequate
+
 ## [2.1.0] - 2025-01-15
 
 ### Added

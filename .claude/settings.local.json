@@ -11,9 +11,29 @@
       "Bash(source:*)",
       "Bash(pip install:*)",
       "Bash(python:*)",
-      "Bash(pytest:*)"
+      "Bash(pytest:*)",
+      "Bash(claude agents list)",
+      "WebSearch",
+      "Bash(rm:*)",
+      "Bash(~/.config/claude/verify-tests.sh:*)",
+      "Bash(bash:*)",
+      "Bash(sed:*)",
+      "Bash(cp:*)",
+      "Bash(ffprobe:*)",
+      "Bash(timeout:*)",
+      "Bash(gtimeout:*)",
+      "Bash(whisper-cpp:*)",
+      "Bash(whisper-cli:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "/Users/gio/.config/claude",
+      "/Users/gio/.config",
+      "/Users/gio/.claude"
+    ]
   }
 }

@@ -2,10 +2,11 @@
 
 echo "🚀 Setting up Whisper Transcription Service..."
 
-# Check if whisper-cpp is installed
-if ! command -v whisper-cpp &> /dev/null; then
-    echo "❌ whisper-cpp not found. Please install it first:"
+# Check if whisper-cli is installed (from whisper-cpp package)
+if ! command -v whisper-cli &> /dev/null; then
+    echo "❌ whisper-cli not found. Please install whisper-cpp first:"
     echo "   brew install whisper-cpp"
+    echo "   Note: The command is now 'whisper-cli', not 'whisper-cpp'"
     exit 1
 fi
 

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class WhisperTranscriber:
     def __init__(self):
-        self.whisper_executable = "whisper-cpp"
+        self.whisper_executable = "whisper-cli"  # Updated to use whisper-cli
         self.ffmpeg_executable = "ffmpeg"
         
     async def convert_to_wav(self, input_path: Path) -> Path:
@@ -82,12 +82,16 @@ class WhisperTranscriber:
         
         # Convert to WAV if needed
         if audio_path.suffix.lower() != ".wav":
-            logger.info(f"Converting {audio_path.suffix} to WAV...")
-            if progress_callback:
-                await progress_callback({"status": "converting", "progress": 0})
-            wav_path = await self.convert_to_wav(audio_path)
-            if progress_callback:
-                await progress_callback({"status": "converting", "progress": 100})
+            logger.info(f"Converting {audio_path.suffix} to WAV for {audio_path.name}...")
+            yield {"status": "converting", "progress": 0, "message": "Converting audio to WAV format..."}
+            
+            try:
+                wav_path = await self.convert_to_wav(audio_path)
+                yield {"status": "converting", "progress": 100, "message": "Conversion complete"}
+            except Exception as e:
+                logger.error(f"Conversion failed for {audio_path.name}: {e}")
+                yield {"status": "error", "progress": 0, "error": f"Failed to convert audio: {str(e)}"}
+                return
         else:
             wav_path = audio_path
         
@@ -117,53 +121,93 @@ class WhisperTranscriber:
             "--print-progress"
         ]
         
+        logger.info(f"Starting transcription for {audio_path.name} with whisper-cpp...")
+        logger.debug(f"Whisper command: {' '.join(cmd)}")
+        
         # Run whisper
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        except Exception as e:
+            logger.error(f"Failed to start whisper-cpp: {e}")
+            yield {"status": "error", "progress": 0, "error": f"Failed to start transcription: {str(e)}"}
+            if wav_path != audio_path and wav_path.exists():
+                wav_path.unlink()
+            return
         
         # Parse progress from stderr
         last_progress = 0
-        while True:
-            line = await process.stderr.readline()
-            if not line:
-                break
+        transcription_started = False
+        
+        try:
+            while True:
+                try:
+                    # Add timeout to prevent hanging
+                    line = await asyncio.wait_for(process.stderr.readline(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    # Check if process is still running
+                    if process.returncode is not None:
+                        break
+                    # If no output for 5 seconds but still running, continue
+                    continue
+                    
+                if not line:
+                    break
+                    
+                line_text = line.decode('utf-8', errors='ignore')
+                logger.debug(f"Whisper output: {line_text.strip()}")
                 
-            line_text = line.decode('utf-8', errors='ignore')
-            
-            # Parse progress indicators
-            if "whisper_full" in line_text or "progress" in line_text:
-                # Extract percentage if available
-                match = re.search(r'(\d+)%', line_text)
-                if match:
-                    progress = int(match.group(1))
-                    if progress > last_progress:
-                        last_progress = progress
+                # Indicate transcription has started
+                if not transcription_started:
+                    transcription_started = True
+                    yield {
+                        "status": "transcribing",
+                        "progress": 1,
+                        "message": "Transcription started..."
+                    }
+                
+                # Parse progress indicators
+                if "whisper_full" in line_text or "progress" in line_text:
+                    # Extract percentage if available
+                    match = re.search(r'(\d+)%', line_text)
+                    if match:
+                        progress = int(match.group(1))
+                        if progress > last_progress:
+                            last_progress = progress
+                            yield {
+                                "status": "transcribing",
+                                "progress": progress,
+                                "message": f"Transcribing... {progress}%"
+                            }
+                
+                # Check for timing info
+                if "[" in line_text and "]" in line_text:
+                    # Extract timestamp from transcription output
+                    match = re.search(r'\[(\d{2}:\d{2}:\d{2}\.\d{3})', line_text)
+                    if match and duration > 0:
+                        timestamp = match.group(1)
+                        # Convert timestamp to seconds
+                        parts = timestamp.split(':')
+                        seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+                        progress = min(int((seconds / duration) * 100), 99)
                         yield {
                             "status": "transcribing",
                             "progress": progress,
-                            "message": f"Transcribing... {progress}%"
+                            "message": f"Processing audio... {progress}%"
                         }
-            
-            # Check for timing info
-            if "[" in line_text and "]" in line_text:
-                # Extract timestamp from transcription output
-                match = re.search(r'\[(\d{2}:\d{2}:\d{2}\.\d{3})', line_text)
-                if match and duration > 0:
-                    timestamp = match.group(1)
-                    # Convert timestamp to seconds
-                    parts = timestamp.split(':')
-                    seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-                    progress = min(int((seconds / duration) * 100), 99)
-                    yield {
-                        "status": "transcribing",
-                        "progress": progress,
-                        "message": f"Processing audio... {progress}%"
-                    }
+        except Exception as e:
+            logger.error(f"Error reading whisper output: {e}")
         
-        await process.wait()
+        # Wait for process to complete
+        try:
+            await asyncio.wait_for(process.wait(), timeout=3600)  # 1 hour timeout
+        except asyncio.TimeoutError:
+            logger.error("Whisper process timed out after 1 hour")
+            process.kill()
+            yield {"status": "error", "progress": 0, "error": "Transcription timeout - file too large or processing error"}
         
         # Clean up temporary WAV if we converted
         if wav_path != audio_path and wav_path.exists():

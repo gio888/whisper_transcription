@@ -31,7 +31,7 @@ A modern web-based interface for transcribing audio files locally using OpenAI's
 
 ### Required Software
 ```bash
-# Install whisper.cpp
+# Install whisper.cpp (installs whisper-cli command)
 brew install whisper-cpp
 
 # Install ffmpeg for audio conversion
@@ -149,7 +149,7 @@ pip3 install -r requirements.txt
 **Transcription Errors**
 ```bash
 # Verify whisper.cpp installation
-whisper-cpp --help
+whisper-cli --help
 
 # Check model file
 ls -la models/small.bin

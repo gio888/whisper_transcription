@@ -18,7 +18,10 @@ import aiofiles
 from config import UPLOAD_DIR, STATIC_DIR, MAX_FILE_SIZE, ALLOWED_EXTENSIONS
 from transcriber import transcriber
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG,  # Changed to DEBUG for more detailed output
+    format='%(asctime)s - %(levelname)s:%(name)s:%(message)s'
+)
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager

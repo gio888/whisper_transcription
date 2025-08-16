@@ -693,3 +693,128 @@ footer {
         min-width: auto;
     }
 }
+
+/* Output Folder Selection Styles */
+.output-folder-section {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.output-folder-heading {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin: 0 0 1rem 0;
+}
+
+.output-folder-controls {
+    margin-bottom: 1rem;
+}
+
+.choose-folder-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+}
+
+.choose-folder-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.choose-folder-btn:active {
+    transform: translateY(0);
+}
+
+.choose-folder-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.selected-folder {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.folder-icon {
+    font-size: 1.25rem;
+}
+
+.folder-path {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 0.875rem;
+    color: #4a5568;
+    word-break: break-all;
+}
+
+.folder-help {
+    font-size: 0.875rem;
+    color: #718096;
+    margin-top: 0.5rem;
+    line-height: 1.4;
+}
+
+.start-processing-btn {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 1rem 2rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 1rem;
+}
+
+.start-processing-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+}
+
+.start-processing-btn:active {
+    transform: translateY(0);
+}
+
+.start-processing-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Mobile optimizations for output folder */
+@media (max-width: 768px) {
+    .output-folder-section {
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .choose-folder-btn,
+    .start-processing-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

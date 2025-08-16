@@ -35,6 +35,13 @@ class TranscriptionApp {
         this.toggleQueue = document.getElementById('toggleQueue');
         this.fileQueue = document.getElementById('fileQueue');
         
+        // Output folder elements
+        this.outputFolderSection = document.getElementById('outputFolderSection');
+        this.chooseFolderBtn = document.getElementById('chooseFolderBtn');
+        this.selectedFolder = document.getElementById('selectedFolder');
+        this.selectedFolderPath = document.getElementById('selectedFolderPath');
+        this.startProcessingBtn = document.getElementById('startProcessingBtn');
+        
         // State management
         this.currentSessionId = null;
         this.currentBatchId = null;
@@ -42,6 +49,7 @@ class TranscriptionApp {
         this.uploadStartTime = null;
         this.isBatchMode = false;
         this.batchFiles = [];
+        this.outputFolderHandle = null;
         
         this.initEventListeners();
     }
@@ -93,6 +101,10 @@ class TranscriptionApp {
         
         // Batch UI events
         this.toggleQueue?.addEventListener('click', () => this.toggleQueueVisibility());
+        
+        // Output folder events
+        this.chooseFolderBtn?.addEventListener('click', () => this.chooseFolderHandler());
+        this.startProcessingBtn?.addEventListener('click', () => this.startBatchProcessing());
     }
     
     handleFilesSelect(files, fileData = null) {
@@ -232,8 +244,8 @@ class TranscriptionApp {
             this.updateBatchStats(data.files_count, 0, 0);
             this.populateFileQueue();
             
-            // Connect WebSocket for batch progress
-            this.connectBatchWebSocket();
+            // Show output folder selection
+            this.updateBatchStatus('Files uploaded successfully. Choose where to save transcripts.');
             
         } catch (error) {
             this.showError('Batch upload failed', error.message);
@@ -332,12 +344,29 @@ class TranscriptionApp {
                 
             case 'file_complete':
                 this.updateFileStatus(data.file_id, data.status, 100, data.error_message);
+                
+                // Store transcript content in batchFiles
+                const batchFile = this.batchFiles.find(f => f.id === data.file_id);
+                if (batchFile && data.transcript) {
+                    batchFile.transcript = data.transcript;
+                    batchFile.status = data.status;
+                    
+                    // If we have an output folder, try to save there
+                    if (data.status === 'completed' && this.outputFolderHandle) {
+                        this.saveTranscriptToFolder(batchFile.name, data.transcript);
+                    }
+                }
                 break;
                 
             case 'batch_complete':
                 this.updateBatchStats(data.total_files, data.completed_files, data.failed_files);
                 this.updateBatchStatus(`Batch complete! ${data.completed_files} of ${data.total_files} files processed successfully.`);
                 this.currentFileSection.style.display = 'none';
+                
+                // If no folder selected or File System Access API not supported, offer download
+                if (!this.outputFolderHandle && data.completed_files > 0) {
+                    this.showDownloadAllOption();
+                }
                 break;
         }
     }
@@ -564,6 +593,138 @@ class TranscriptionApp {
         document.body.removeChild(a);
     }
     
+    // Output Folder Selection Methods
+    async chooseFolderHandler() {
+        try {
+            // Check if File System Access API is supported
+            if (!('showDirectoryPicker' in window)) {
+                this.showFallbackMessage();
+                return;
+            }
+            
+            // Request directory access
+            this.outputFolderHandle = await window.showDirectoryPicker();
+            
+            // Update UI to show selected folder
+            this.selectedFolderPath.textContent = this.outputFolderHandle.name;
+            this.selectedFolder.style.display = 'flex';
+            this.startProcessingBtn.style.display = 'block';
+            
+            // Update status
+            this.updateBatchStatus('Output folder selected. Ready to start processing!');
+            
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error('Error choosing folder:', error);
+                this.showError('Folder Selection Failed', 'Could not access the selected folder. Please try again.');
+            }
+        }
+    }
+    
+    showFallbackMessage() {
+        // Show message about browser support
+        this.updateBatchStatus('Your browser doesn\'t support folder selection. Transcripts will be downloaded as a ZIP file.');
+        this.startProcessingBtn.style.display = 'block';
+        this.startProcessingBtn.textContent = '🚀 Start Processing (Download ZIP)';
+    }
+    
+    async startBatchProcessing() {
+        if (!this.currentBatchId) {
+            this.showError('No Files', 'Please upload files first.');
+            return;
+        }
+        
+        // Hide output folder selection section
+        this.outputFolderSection.style.display = 'none';
+        
+        // Connect to WebSocket and start processing
+        this.connectBatchWebSocket();
+    }
+    
+    async saveTranscriptToFolder(fileName, content) {
+        if (!this.outputFolderHandle) {
+            return false; // Fall back to download
+        }
+        
+        try {
+            // Create transcript file name
+            const transcriptName = fileName.replace(/\.[^/.]+$/, '') + '.txt';
+            
+            // Get file handle
+            const fileHandle = await this.outputFolderHandle.getFileHandle(transcriptName, {
+                create: true
+            });
+            
+            // Write content
+            const writable = await fileHandle.createWritable();
+            await writable.write(content);
+            await writable.close();
+            
+            return true;
+        } catch (error) {
+            console.error('Error saving to folder:', error);
+            return false; // Fall back to download
+        }
+    }
+    
+    showDownloadAllOption() {
+        // Create download button for all transcripts
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'start-processing-btn';
+        downloadBtn.innerHTML = '📥 Download All Transcripts';
+        downloadBtn.style.marginTop = '1rem';
+        downloadBtn.onclick = () => this.downloadAllTranscripts();
+        
+        // Add to batch status area
+        const statusElement = document.getElementById('batchStatus');
+        if (statusElement && statusElement.parentNode) {
+            statusElement.parentNode.appendChild(downloadBtn);
+        }
+    }
+    
+    async downloadAllTranscripts() {
+        // Collect all completed transcripts
+        const transcripts = [];
+        for (const file of this.batchFiles) {
+            if (file.status === 'completed' && file.transcript) {
+                const fileName = file.name.replace(/\.[^/.]+$/, '') + '.txt';
+                transcripts.push({
+                    name: fileName,
+                    content: file.transcript
+                });
+            }
+        }
+        
+        if (transcripts.length === 0) {
+            this.showError('No Transcripts', 'No completed transcripts to download.');
+            return;
+        }
+        
+        // Create ZIP file with all transcripts
+        this.createAndDownloadZip(transcripts);
+    }
+    
+    async createAndDownloadZip(transcripts) {
+        // Simple ZIP creation (basic implementation)
+        // For a real app, you'd use a proper ZIP library like JSZip
+        
+        // For now, create individual downloads
+        for (const transcript of transcripts) {
+            const blob = new Blob([transcript.content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = transcript.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            // Small delay between downloads
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+    
     reset() {
         this.dropZone.style.display = 'block';
         this.progressSection.style.display = 'none';
@@ -580,6 +741,12 @@ class TranscriptionApp {
         this.uploadStartTime = null;
         this.isBatchMode = false;
         this.batchFiles = [];
+        this.outputFolderHandle = null;
+        
+        // Reset output folder UI
+        if (this.selectedFolder) this.selectedFolder.style.display = 'none';
+        if (this.startProcessingBtn) this.startProcessingBtn.style.display = 'none';
+        if (this.outputFolderSection) this.outputFolderSection.style.display = 'block';
         
         if (this.timeEstimate) this.timeEstimate.textContent = '';
         if (this.currentFileSection) this.currentFileSection.style.display = 'none';

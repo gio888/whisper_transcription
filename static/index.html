@@ -93,6 +93,32 @@
                 <div class="batch-status" id="batchStatus" aria-live="polite">Preparing batch...</div>
             </div>
             
+            <!-- Output Folder Selection -->
+            <div class="output-folder-section" id="outputFolderSection">
+                <h3 class="output-folder-heading">Output Location</h3>
+                <div class="output-folder-controls">
+                    <button type="button" 
+                            id="chooseFolderBtn" 
+                            class="choose-folder-btn"
+                            aria-describedby="folder-help">
+                        📁 Choose Output Folder
+                    </button>
+                    <div class="selected-folder" id="selectedFolder" style="display: none;">
+                        <span class="folder-icon">📁</span>
+                        <span class="folder-path" id="selectedFolderPath">No folder selected</span>
+                    </div>
+                    <div class="folder-help" id="folder-help">
+                        Select where to save transcript files. If not selected, transcripts will be downloaded.
+                    </div>
+                </div>
+                <button type="button" 
+                        id="startProcessingBtn" 
+                        class="start-processing-btn" 
+                        style="display: none;">
+                    🚀 Start Processing
+                </button>
+            </div>
+            
             <!-- Current File Being Processed -->
             <div class="current-file-section" id="currentFileSection" style="display: none;">
                 <h3 class="current-file-heading">Currently Processing</h3>

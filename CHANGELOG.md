@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2025-01-16
+
+### Added
+- **🎯 Output Folder Selection**: Choose where to save transcripts using File System Access API
+- **📁 Direct Folder Writing**: Transcripts save directly to chosen folder (Chrome/Edge)
+- **📥 Download Fallback**: Automatic individual downloads for unsupported browsers
+- **🚀 Manual Processing Start**: User controls when batch processing begins after folder selection
+
+### Fixed
+- **CRITICAL: WebSocket Hang**: Fixed batch processing hanging indefinitely waiting for file paths
+- **Batch Flow**: Restored proper batch processing workflow with user-controlled start
+
+### Technical
+- **File System Access API**: Modern browser folder selection and writing capabilities
+- **Enhanced WebSocket Protocol**: Includes transcript content in completion messages
+- **Graceful Fallbacks**: Works across all browsers with appropriate feature detection
+
 ## [2.2.1] - 2025-01-16
 
 ### Fixed

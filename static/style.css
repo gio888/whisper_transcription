@@ -694,25 +694,31 @@ footer {
     }
 }
 
-/* Output Folder Selection Styles */
-.output-folder-section {
-    background: white;
+/* Processing Folder Selection Styles */
+.processing-folder-section {
+    margin: 1rem 0;
+}
+
+.folder-selection-card {
+    background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
     border: 1px solid #e2e8f0;
     border-radius: 0.75rem;
-    padding: 1.5rem;
-    margin: 1.5rem 0;
+    padding: 1.25rem;
+    text-align: center;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.output-folder-heading {
-    font-size: 1.125rem;
+.folder-heading {
+    font-size: 1rem;
     font-weight: 600;
     color: #2d3748;
-    margin: 0 0 1rem 0;
+    margin: 0 0 0.5rem 0;
 }
 
-.output-folder-controls {
-    margin-bottom: 1rem;
+.folder-description {
+    font-size: 0.875rem;
+    color: #718096;
+    margin: 0 0 1rem 0;
 }
 
 .choose-folder-btn {
@@ -748,31 +754,31 @@ footer {
 
 .selected-folder {
     margin-top: 1rem;
-    padding: 0.75rem;
-    background: #f7fafc;
-    border: 1px solid #e2e8f0;
+    padding: 0.5rem 1rem;
+    background: #f0fff4;
+    border: 1px solid #9ae6b4;
     border-radius: 0.5rem;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
 }
 
 .folder-icon {
-    font-size: 1.25rem;
+    font-size: 1rem;
 }
 
 .folder-path {
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
     font-size: 0.875rem;
-    color: #4a5568;
-    word-break: break-all;
+    color: #2f855a;
+    font-weight: 600;
 }
 
-.folder-help {
-    font-size: 0.875rem;
+.folder-status {
+    font-size: 0.75rem;
     color: #718096;
-    margin-top: 0.5rem;
-    line-height: 1.4;
+    margin-top: 0.75rem;
+    font-style: italic;
 }
 
 .start-processing-btn {

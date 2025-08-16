@@ -35,12 +35,12 @@ class TranscriptionApp {
         this.toggleQueue = document.getElementById('toggleQueue');
         this.fileQueue = document.getElementById('fileQueue');
         
-        // Output folder elements
-        this.outputFolderSection = document.getElementById('outputFolderSection');
+        // Processing folder elements
+        this.processingFolderSection = document.getElementById('processingFolderSection');
         this.chooseFolderBtn = document.getElementById('chooseFolderBtn');
         this.selectedFolder = document.getElementById('selectedFolder');
         this.selectedFolderPath = document.getElementById('selectedFolderPath');
-        this.startProcessingBtn = document.getElementById('startProcessingBtn');
+        this.folderStatus = document.getElementById('folderStatus');
         
         // State management
         this.currentSessionId = null;
@@ -102,9 +102,8 @@ class TranscriptionApp {
         // Batch UI events
         this.toggleQueue?.addEventListener('click', () => this.toggleQueueVisibility());
         
-        // Output folder events
+        // Processing folder events
         this.chooseFolderBtn?.addEventListener('click', () => this.chooseFolderHandler());
-        this.startProcessingBtn?.addEventListener('click', () => this.startBatchProcessing());
     }
     
     handleFilesSelect(files, fileData = null) {
@@ -244,8 +243,12 @@ class TranscriptionApp {
             this.updateBatchStats(data.files_count, 0, 0);
             this.populateFileQueue();
             
-            // Show output folder selection
-            this.updateBatchStatus('Files uploaded successfully. Choose where to save transcripts.');
+            // Show folder selection during processing
+            this.processingFolderSection.style.display = 'block';
+            
+            // Auto-start processing
+            this.updateBatchStatus('Processing files...');
+            this.connectBatchWebSocket();
             
         } catch (error) {
             this.showError('Batch upload failed', error.message);
@@ -345,16 +348,14 @@ class TranscriptionApp {
             case 'file_complete':
                 this.updateFileStatus(data.file_id, data.status, 100, data.error_message);
                 
-                // Store transcript content in batchFiles
+                // Store transcript content and save immediately if completed
                 const batchFile = this.batchFiles.find(f => f.id === data.file_id);
-                if (batchFile && data.transcript) {
+                if (batchFile && data.status === 'completed' && data.transcript) {
                     batchFile.transcript = data.transcript;
                     batchFile.status = data.status;
                     
-                    // If we have an output folder, try to save there
-                    if (data.status === 'completed' && this.outputFolderHandle) {
-                        this.saveTranscriptToFolder(batchFile.name, data.transcript);
-                    }
+                    // Save file immediately - either to folder or download
+                    this.saveCompletedTranscript(batchFile.name, data.transcript);
                 }
                 break;
                 
@@ -363,9 +364,9 @@ class TranscriptionApp {
                 this.updateBatchStatus(`Batch complete! ${data.completed_files} of ${data.total_files} files processed successfully.`);
                 this.currentFileSection.style.display = 'none';
                 
-                // If no folder selected or File System Access API not supported, offer download
-                if (!this.outputFolderHandle && data.completed_files > 0) {
-                    this.showDownloadAllOption();
+                // Hide folder selection since processing is done
+                if (this.processingFolderSection) {
+                    this.processingFolderSection.style.display = 'none';
                 }
                 break;
         }
@@ -593,12 +594,12 @@ class TranscriptionApp {
         document.body.removeChild(a);
     }
     
-    // Output Folder Selection Methods
+    // Processing Folder Selection Methods
     async chooseFolderHandler() {
         try {
             // Check if File System Access API is supported
             if (!('showDirectoryPicker' in window)) {
-                this.showFallbackMessage();
+                this.folderStatus.textContent = 'Folder selection not supported. Files will download individually.';
                 return;
             }
             
@@ -608,37 +609,14 @@ class TranscriptionApp {
             // Update UI to show selected folder
             this.selectedFolderPath.textContent = this.outputFolderHandle.name;
             this.selectedFolder.style.display = 'flex';
-            this.startProcessingBtn.style.display = 'block';
-            
-            // Update status
-            this.updateBatchStatus('Output folder selected. Ready to start processing!');
+            this.folderStatus.textContent = `Completed files will save to: ${this.outputFolderHandle.name}`;
             
         } catch (error) {
             if (error.name !== 'AbortError') {
                 console.error('Error choosing folder:', error);
-                this.showError('Folder Selection Failed', 'Could not access the selected folder. Please try again.');
+                this.folderStatus.textContent = 'Folder selection failed. Files will download individually.';
             }
         }
-    }
-    
-    showFallbackMessage() {
-        // Show message about browser support
-        this.updateBatchStatus('Your browser doesn\'t support folder selection. Transcripts will be downloaded as a ZIP file.');
-        this.startProcessingBtn.style.display = 'block';
-        this.startProcessingBtn.textContent = '🚀 Start Processing (Download ZIP)';
-    }
-    
-    async startBatchProcessing() {
-        if (!this.currentBatchId) {
-            this.showError('No Files', 'Please upload files first.');
-            return;
-        }
-        
-        // Hide output folder selection section
-        this.outputFolderSection.style.display = 'none';
-        
-        // Connect to WebSocket and start processing
-        this.connectBatchWebSocket();
     }
     
     async saveTranscriptToFolder(fileName, content) {
@@ -667,62 +645,45 @@ class TranscriptionApp {
         }
     }
     
-    showDownloadAllOption() {
-        // Create download button for all transcripts
-        const downloadBtn = document.createElement('button');
-        downloadBtn.className = 'start-processing-btn';
-        downloadBtn.innerHTML = '📥 Download All Transcripts';
-        downloadBtn.style.marginTop = '1rem';
-        downloadBtn.onclick = () => this.downloadAllTranscripts();
+    async saveCompletedTranscript(originalFileName, transcriptContent) {
+        const transcriptName = originalFileName.replace(/\.[^/.]+$/, '') + '.txt';
         
-        // Add to batch status area
-        const statusElement = document.getElementById('batchStatus');
-        if (statusElement && statusElement.parentNode) {
-            statusElement.parentNode.appendChild(downloadBtn);
-        }
-    }
-    
-    async downloadAllTranscripts() {
-        // Collect all completed transcripts
-        const transcripts = [];
-        for (const file of this.batchFiles) {
-            if (file.status === 'completed' && file.transcript) {
-                const fileName = file.name.replace(/\.[^/.]+$/, '') + '.txt';
-                transcripts.push({
-                    name: fileName,
-                    content: file.transcript
+        // Try to save to selected folder first
+        if (this.outputFolderHandle) {
+            try {
+                const fileHandle = await this.outputFolderHandle.getFileHandle(transcriptName, {
+                    create: true
                 });
+                
+                const writable = await fileHandle.createWritable();
+                await writable.write(transcriptContent);
+                await writable.close();
+                
+                console.log(`✅ Saved ${transcriptName} to folder`);
+                return;
+                
+            } catch (error) {
+                console.error(`Failed to save ${transcriptName} to folder:`, error);
+                // Fall through to download
             }
         }
         
-        if (transcripts.length === 0) {
-            this.showError('No Transcripts', 'No completed transcripts to download.');
-            return;
-        }
-        
-        // Create ZIP file with all transcripts
-        this.createAndDownloadZip(transcripts);
+        // Fallback to individual download
+        this.downloadTranscriptFile(transcriptName, transcriptContent);
     }
     
-    async createAndDownloadZip(transcripts) {
-        // Simple ZIP creation (basic implementation)
-        // For a real app, you'd use a proper ZIP library like JSZip
+    downloadTranscriptFile(fileName, content) {
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
         
-        // For now, create individual downloads
-        for (const transcript of transcripts) {
-            const blob = new Blob([transcript.content], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = transcript.name;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            // Small delay between downloads
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
+        console.log(`📥 Downloaded ${fileName}`);
     }
     
     reset() {
@@ -743,10 +704,10 @@ class TranscriptionApp {
         this.batchFiles = [];
         this.outputFolderHandle = null;
         
-        // Reset output folder UI
+        // Reset processing folder UI
         if (this.selectedFolder) this.selectedFolder.style.display = 'none';
-        if (this.startProcessingBtn) this.startProcessingBtn.style.display = 'none';
-        if (this.outputFolderSection) this.outputFolderSection.style.display = 'block';
+        if (this.processingFolderSection) this.processingFolderSection.style.display = 'none';
+        if (this.folderStatus) this.folderStatus.textContent = 'Files will download individually if no folder is selected';
         
         if (this.timeEstimate) this.timeEstimate.textContent = '';
         if (this.currentFileSection) this.currentFileSection.style.display = 'none';

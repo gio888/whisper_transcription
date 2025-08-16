@@ -8,19 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.3.0] - 2025-01-16
 
 ### Added
-- **🎯 Output Folder Selection**: Choose where to save transcripts using File System Access API
-- **📁 Direct Folder Writing**: Transcripts save directly to chosen folder (Chrome/Edge)
-- **📥 Download Fallback**: Automatic individual downloads for unsupported browsers
-- **🚀 Manual Processing Start**: User controls when batch processing begins after folder selection
+- **🎯 Real-Time Individual File Saving**: Transcripts save immediately as each file completes
+- **📁 Optional Folder Selection**: Choose output folder anytime during processing (non-blocking)
+- **🚀 Automatic Processing**: Drag files → immediate processing starts (no interruption)
+- **📥 Progressive Downloads**: Individual file downloads for unsupported browsers
 
 ### Fixed
 - **CRITICAL: WebSocket Hang**: Fixed batch processing hanging indefinitely waiting for file paths
-- **Batch Flow**: Restored proper batch processing workflow with user-controlled start
+- **Simplified Workflow**: Removed complex pre-processing folder selection that interrupted flow
+- **No ZIP Files**: Direct individual file saving/downloading (no extra unzip step)
 
 ### Technical
-- **File System Access API**: Modern browser folder selection and writing capabilities
+- **Parallel Operations**: Processing and folder selection happen simultaneously
+- **File System Access API**: Modern browser folder writing as files complete
+- **Real-Time Saving**: Files appear in chosen folder immediately when transcription finishes
 - **Enhanced WebSocket Protocol**: Includes transcript content in completion messages
-- **Graceful Fallbacks**: Works across all browsers with appropriate feature detection
+
+### User Experience
+- **Flow**: Drag files → Auto-process → Optionally choose folder → Files save as they complete
+- **No Waiting**: User can select output folder anytime during processing
+- **No Interruption**: Processing starts immediately, folder selection is optional
 
 ## [2.2.1] - 2025-01-16
 

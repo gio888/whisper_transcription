@@ -93,30 +93,24 @@
                 <div class="batch-status" id="batchStatus" aria-live="polite">Preparing batch...</div>
             </div>
             
-            <!-- Output Folder Selection -->
-            <div class="output-folder-section" id="outputFolderSection">
-                <h3 class="output-folder-heading">Output Location</h3>
-                <div class="output-folder-controls">
+            <!-- Optional Folder Selection During Processing -->
+            <div class="processing-folder-section" id="processingFolderSection" style="display: none;">
+                <div class="folder-selection-card">
+                    <h3 class="folder-heading">💾 Save Location</h3>
+                    <p class="folder-description">Choose where to save completed transcripts (optional)</p>
                     <button type="button" 
                             id="chooseFolderBtn" 
-                            class="choose-folder-btn"
-                            aria-describedby="folder-help">
-                        📁 Choose Output Folder
+                            class="choose-folder-btn">
+                        📁 Choose Folder
                     </button>
                     <div class="selected-folder" id="selectedFolder" style="display: none;">
-                        <span class="folder-icon">📁</span>
-                        <span class="folder-path" id="selectedFolderPath">No folder selected</span>
+                        <span class="folder-icon">✅</span>
+                        <span class="folder-path" id="selectedFolderPath">Folder selected</span>
                     </div>
-                    <div class="folder-help" id="folder-help">
-                        Select where to save transcript files. If not selected, transcripts will be downloaded.
+                    <div class="folder-status" id="folderStatus">
+                        Files will download individually if no folder is selected
                     </div>
                 </div>
-                <button type="button" 
-                        id="startProcessingBtn" 
-                        class="start-processing-btn" 
-                        style="display: none;">
-                    🚀 Start Processing
-                </button>
             </div>
             
             <!-- Current File Being Processed -->

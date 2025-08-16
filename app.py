@@ -278,6 +278,32 @@ async def batch_websocket_endpoint(websocket: WebSocket, batch_id: str):
             })
             return
         
+        # Wait for original file paths from client
+        await websocket.send_json({
+            "type": "waiting_for_paths",
+            "message": "Send original file paths to start processing"
+        })
+        
+        # Receive original file paths
+        try:
+            data = await websocket.receive_json()
+            if data.get("type") == "set_original_paths":
+                file_paths = data.get("file_paths", {})
+                batch_job = active_batches[batch_id]
+                
+                # Update original paths for each file
+                for batch_file in batch_job.files:
+                    if batch_file.id in file_paths:
+                        batch_file.original_path = file_paths[batch_file.id]
+                        logger.info(f"Set original path for {batch_file.original_name}: {batch_file.original_path}")
+                
+                await websocket.send_json({
+                    "type": "paths_received",
+                    "message": "Starting batch processing..."
+                })
+        except Exception as e:
+            logger.error(f"Error receiving file paths: {e}")
+        
         # Start batch processing
         await process_batch(batch_id)
         

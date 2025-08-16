@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2025-01-16
+
+### Fixed
+- **Transcript Save Location**: Fixed transcripts saving to wrong location (uploads/ with UUID names instead of next to original files)
+- **Corrupted File Detection**: Added file size validation and ffprobe checks to detect corrupted files early
+- **Error Handling**: Improved batch processing error handling to skip corrupted files and continue processing
+- **Original Path Integration**: Enhanced WebSocket protocol to receive and use original file paths properly
+
+### Added
+- **File Validation**: New `validate_audio_file()` method that checks file size and audio stream validity
+- **Early Error Detection**: Corrupted files (like 13KB "moov atom not found" files) are now caught before processing
+- **Path Communication**: WebSocket now receives original file paths from client for proper transcript placement
+
 ## [2.2.0] - 2025-01-16
 
 ### Fixed

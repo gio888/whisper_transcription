@@ -66,6 +66,49 @@ class WhisperTranscriber:
         except:
             return 0.0
     
+    async def validate_audio_file(self, audio_path: Path) -> bool:
+        """Validate audio file for corruption and basic requirements"""
+        try:
+            # Check file size (corrupted files are often very small)
+            file_size = audio_path.stat().st_size
+            if file_size < 1024:  # Less than 1KB is likely corrupted
+                logger.warning(f"File {audio_path.name} is too small ({file_size} bytes) - likely corrupted")
+                return False
+            
+            # Use ffprobe to validate file structure
+            cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "a:0",
+                "-show_entries", "stream=codec_name,duration",
+                "-of", "csv=p=0",
+                str(audio_path)
+            ]
+            
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                logger.warning(f"ffprobe validation failed for {audio_path.name}: {stderr.decode()}")
+                return False
+            
+            # Check if we got valid output
+            output = stdout.decode().strip()
+            if not output or "N/A" in output:
+                logger.warning(f"No valid audio stream found in {audio_path.name}")
+                return False
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating {audio_path.name}: {e}")
+            return False
+
     async def transcribe_with_progress(
         self, 
         audio_path: Path,
@@ -79,6 +122,18 @@ class WhisperTranscriber:
             progress_callback: Optional callback for progress updates
             original_path: Original file path to save transcript next to source file
         """
+        
+        # Validate audio file first
+        yield {"status": "validating", "progress": 0, "message": "Validating audio file..."}
+        
+        if not await self.validate_audio_file(audio_path):
+            file_size = audio_path.stat().st_size
+            yield {
+                "status": "error", 
+                "progress": 0, 
+                "error": f"Invalid or corrupted audio file: {audio_path.name} ({file_size} bytes). File may be corrupted or not a valid audio format."
+            }
+            return
         
         # Convert to WAV if needed
         if audio_path.suffix.lower() != ".wav":
@@ -104,11 +159,13 @@ class WhisperTranscriber:
             original_file_path = Path(original_path)
             output_txt = original_file_path.parent / f"{original_file_path.stem}.txt"
             logger.info(f"Saving transcript to original location: {output_txt}")
+            # Ensure the original directory exists
+            output_txt.parent.mkdir(parents=True, exist_ok=True)
         else:
             # Default behavior: save in upload directory
             output_txt = UPLOAD_DIR / f"{audio_path.stem}_transcript.txt"
         
-        # Build whisper command
+        # Build whisper command - output directly to final location
         cmd = [
             self.whisper_executable,
             "--model", WHISPER_CONFIG["model"],
@@ -213,37 +270,18 @@ class WhisperTranscriber:
         if wav_path != audio_path and wav_path.exists():
             wav_path.unlink()
         
-        # Read final transcript
-        temp_output = UPLOAD_DIR / f"{audio_path.stem}_transcript.txt"
-        
-        if temp_output.exists():
-            with open(temp_output, 'r', encoding='utf-8') as f:
+        # Read final transcript from the correct location
+        if output_txt.exists():
+            with open(output_txt, 'r', encoding='utf-8') as f:
                 transcript = f.read()
             
-            # If we need to save to original location, copy the file there
-            final_output_path = temp_output
-            if original_path and output_txt != temp_output:
-                try:
-                    # Ensure the original directory exists
-                    output_txt.parent.mkdir(parents=True, exist_ok=True)
-                    
-                    # Copy transcript to original location
-                    with open(output_txt, 'w', encoding='utf-8') as f:
-                        f.write(transcript)
-                    
-                    final_output_path = output_txt
-                    logger.info(f"Transcript saved to: {output_txt}")
-                    
-                except Exception as e:
-                    logger.error(f"Failed to save transcript to original location: {e}")
-                    # Fall back to temp location if original save fails
-                    pass
+            logger.info(f"Transcript successfully saved to: {output_txt}")
             
             yield {
                 "status": "completed",
                 "progress": 100,
                 "transcript": transcript,
-                "output_file": str(final_output_path)
+                "output_file": str(output_txt)
             }
         else:
             yield {

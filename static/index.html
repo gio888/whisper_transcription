@@ -98,11 +98,19 @@
                 <div class="folder-selection-card">
                     <h3 class="folder-heading">💾 Save Location</h3>
                     <p class="folder-description">Choose where to save completed transcripts (optional)</p>
-                    <button type="button" 
-                            id="chooseFolderBtn" 
-                            class="choose-folder-btn">
-                        📁 Choose Folder
-                    </button>
+                    <div class="folder-buttons">
+                        <button type="button" 
+                                id="chooseFolderBtn" 
+                                class="choose-folder-btn">
+                            📁 Choose Folder
+                        </button>
+                        <button type="button"
+                                id="clearFolderBtn"
+                                class="clear-folder-btn"
+                                style="display: none;">
+                            ❌ Clear Saved Folder
+                        </button>
+                    </div>
                     <div class="selected-folder" id="selectedFolder" style="display: none;">
                         <span class="folder-icon">✅</span>
                         <span class="folder-path" id="selectedFolderPath">Folder selected</span>

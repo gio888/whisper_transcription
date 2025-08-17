@@ -38,9 +38,15 @@ class TranscriptionApp {
         // Processing folder elements
         this.processingFolderSection = document.getElementById('processingFolderSection');
         this.chooseFolderBtn = document.getElementById('chooseFolderBtn');
+        this.clearFolderBtn = document.getElementById('clearFolderBtn');
         this.selectedFolder = document.getElementById('selectedFolder');
         this.selectedFolderPath = document.getElementById('selectedFolderPath');
         this.folderStatus = document.getElementById('folderStatus');
+        
+        // Debug logging
+        console.log('🔍 TranscriptionApp initialized');
+        console.log('🔍 processingFolderSection element:', this.processingFolderSection);
+        console.log('🔍 chooseFolderBtn element:', this.chooseFolderBtn);
         
         // State management
         this.currentSessionId = null;
@@ -51,7 +57,207 @@ class TranscriptionApp {
         this.batchFiles = [];
         this.outputFolderHandle = null;
         
+        // Initialize IndexedDB for folder persistence
+        this.initIndexedDB();
+        
         this.initEventListeners();
+        
+        // Attempt to restore saved folder
+        this.restoreSavedFolder();
+    }
+    
+    async initIndexedDB() {
+        // Initialize IndexedDB for storing folder handles
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open('WhisperTranscription', 1);
+            
+            request.onerror = () => {
+                console.error('Failed to open IndexedDB:', request.error);
+                reject(request.error);
+            };
+            
+            request.onsuccess = () => {
+                this.db = request.result;
+                console.log('✅ IndexedDB initialized');
+                resolve();
+            };
+            
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                
+                // Create object store for folder handles
+                if (!db.objectStoreNames.contains('folderHandles')) {
+                    db.createObjectStore('folderHandles', { keyPath: 'id' });
+                    console.log('📁 Created folderHandles object store');
+                }
+            };
+        });
+    }
+    
+    async saveFolderHandle(handle) {
+        if (!this.db || !handle) return;
+        
+        try {
+            const transaction = this.db.transaction(['folderHandles'], 'readwrite');
+            const store = transaction.objectStore('folderHandles');
+            
+            // Store handle with metadata
+            await store.put({
+                id: 'outputFolder',
+                handle: handle,
+                name: handle.name,
+                savedAt: new Date().toISOString()
+            });
+            
+            // Also save folder name in localStorage for quick reference
+            localStorage.setItem('savedFolderName', handle.name);
+            localStorage.setItem('savedFolderDate', new Date().toISOString());
+            
+            console.log('💾 Folder handle saved:', handle.name);
+        } catch (error) {
+            console.error('Failed to save folder handle:', error);
+        }
+    }
+    
+    async restoreSavedFolder() {
+        // Check if we have a saved folder
+        const savedFolderName = localStorage.getItem('savedFolderName');
+        if (!savedFolderName) {
+            console.log('📁 No saved folder found');
+            return;
+        }
+        
+        console.log('🔄 Attempting to restore saved folder:', savedFolderName);
+        
+        if (!this.db) {
+            await this.initIndexedDB();
+        }
+        
+        try {
+            const transaction = this.db.transaction(['folderHandles'], 'readonly');
+            const store = transaction.objectStore('folderHandles');
+            const request = store.get('outputFolder');
+            
+            request.onsuccess = async () => {
+                const data = request.result;
+                if (data && data.handle) {
+                    // Verify we still have permission
+                    const permissionStatus = await this.verifyFolderPermission(data.handle);
+                    
+                    if (permissionStatus === 'granted') {
+                        // Permission still valid, use this folder
+                        this.outputFolderHandle = data.handle;
+                        this.updateFolderUI(data.handle.name, true);
+                        console.log('✅ Restored folder with existing permission:', data.handle.name);
+                    } else {
+                        // Permission expired, show re-authorization option
+                        this.showReauthorizationUI(data.handle, data.name);
+                    }
+                }
+            };
+            
+            request.onerror = () => {
+                console.error('Failed to restore folder handle:', request.error);
+            };
+        } catch (error) {
+            console.error('Error restoring folder:', error);
+        }
+    }
+    
+    async verifyFolderPermission(handle) {
+        try {
+            // Check if we have permission to write to this folder
+            const permission = await handle.queryPermission({ mode: 'readwrite' });
+            return permission;
+        } catch (error) {
+            console.error('Error checking folder permission:', error);
+            return 'denied';
+        }
+    }
+    
+    showReauthorizationUI(handle, folderName) {
+        // Update UI to show that we have a saved folder but need permission
+        if (this.folderStatus) {
+            this.folderStatus.innerHTML = `
+                📁 Previously selected: <strong>${folderName}</strong>
+                <button id="reauthorizeBtn" style="margin-left: 10px; padding: 4px 8px; 
+                        background: #667eea; color: white; border: none; border-radius: 4px; 
+                        cursor: pointer; font-size: 0.875rem;">
+                    Re-authorize Access
+                </button>
+            `;
+            
+            // Add click handler for re-authorization
+            const reauthorizeBtn = document.getElementById('reauthorizeBtn');
+            if (reauthorizeBtn) {
+                reauthorizeBtn.addEventListener('click', async () => {
+                    try {
+                        const permission = await handle.requestPermission({ mode: 'readwrite' });
+                        if (permission === 'granted') {
+                            this.outputFolderHandle = handle;
+                            this.updateFolderUI(folderName, true);
+                            await this.saveFolderHandle(handle); // Re-save with updated permission
+                            console.log('✅ Re-authorized folder access:', folderName);
+                        } else {
+                            this.folderStatus.textContent = 'Permission denied. Please choose a folder manually.';
+                        }
+                    } catch (error) {
+                        console.error('Re-authorization failed:', error);
+                        this.folderStatus.textContent = 'Re-authorization failed. Please choose a folder manually.';
+                    }
+                });
+            }
+        }
+    }
+    
+    updateFolderUI(folderName, isRestored = false) {
+        // Update UI to show selected/restored folder
+        if (this.selectedFolderPath) {
+            this.selectedFolderPath.textContent = folderName;
+        }
+        if (this.selectedFolder) {
+            this.selectedFolder.style.display = 'flex';
+        }
+        if (this.folderStatus) {
+            const restoredText = isRestored ? ' (restored from previous session)' : '';
+            this.folderStatus.textContent = `Completed files will save to: ${folderName}${restoredText}`;
+        }
+        // Show clear button when folder is selected
+        if (this.clearFolderBtn) {
+            this.clearFolderBtn.style.display = 'flex';
+        }
+    }
+    
+    async clearSavedFolder() {
+        // Clear the saved folder from storage
+        this.outputFolderHandle = null;
+        
+        // Clear from localStorage
+        localStorage.removeItem('savedFolderName');
+        localStorage.removeItem('savedFolderDate');
+        
+        // Clear from IndexedDB
+        if (this.db) {
+            try {
+                const transaction = this.db.transaction(['folderHandles'], 'readwrite');
+                const store = transaction.objectStore('folderHandles');
+                await store.delete('outputFolder');
+                console.log('🗑️ Cleared saved folder');
+            } catch (error) {
+                console.error('Failed to clear folder from IndexedDB:', error);
+            }
+        }
+        
+        // Update UI
+        if (this.selectedFolder) {
+            this.selectedFolder.style.display = 'none';
+        }
+        if (this.clearFolderBtn) {
+            this.clearFolderBtn.style.display = 'none';
+        }
+        if (this.folderStatus) {
+            this.folderStatus.textContent = 'Files will download individually if no folder is selected';
+        }
     }
     
     initEventListeners() {
@@ -104,6 +310,7 @@ class TranscriptionApp {
         
         // Processing folder events
         this.chooseFolderBtn?.addEventListener('click', () => this.chooseFolderHandler());
+        this.clearFolderBtn?.addEventListener('click', () => this.clearSavedFolder());
     }
     
     handleFilesSelect(files, fileData = null) {
@@ -114,9 +321,13 @@ class TranscriptionApp {
         // Determine if this is batch mode
         this.isBatchMode = fileArray.length > 1;
         
+        console.log(`🔍 handleFilesSelect: ${fileArray.length} files, isBatchMode: ${this.isBatchMode}`);
+        
         if (this.isBatchMode) {
+            console.log('🔍 Taking batch upload path');
             this.handleBatchUpload(fileArray, fileData);
         } else {
+            console.log('🔍 Taking single file upload path');
             // Single file mode (legacy)
             this.handleSingleFileUpload(fileArray[0]);
         }
@@ -153,6 +364,8 @@ class TranscriptionApp {
     }
     
     async handleBatchUpload(files, fileData = null) {
+        console.log('🔍 handleBatchUpload called with', files.length, 'files');
+        
         // Validate all files
         const validFiles = [];
         const validTypes = ['.m4a', '.mp3', '.wav', '.aac', '.mp4'];
@@ -244,7 +457,21 @@ class TranscriptionApp {
             this.populateFileQueue();
             
             // Show folder selection during processing
-            this.processingFolderSection.style.display = 'block';
+            console.log('🔍 About to show processingFolderSection');
+            console.log('🔍 processingFolderSection element:', this.processingFolderSection);
+            
+            if (this.processingFolderSection) {
+                this.processingFolderSection.style.display = 'block';
+                console.log('✅ Set processingFolderSection display to block');
+                
+                // If we already have a saved folder, show that it's being used
+                if (this.outputFolderHandle) {
+                    this.updateFolderUI(this.outputFolderHandle.name, false);
+                    console.log('📁 Using previously selected folder:', this.outputFolderHandle.name);
+                }
+            } else {
+                console.error('❌ processingFolderSection is null!');
+            }
             
             // Auto-start processing
             this.updateBatchStatus('Processing files...');
@@ -606,10 +833,13 @@ class TranscriptionApp {
             // Request directory access
             this.outputFolderHandle = await window.showDirectoryPicker();
             
+            // Save the folder handle for future sessions
+            await this.saveFolderHandle(this.outputFolderHandle);
+            
             // Update UI to show selected folder
-            this.selectedFolderPath.textContent = this.outputFolderHandle.name;
-            this.selectedFolder.style.display = 'flex';
-            this.folderStatus.textContent = `Completed files will save to: ${this.outputFolderHandle.name}`;
+            this.updateFolderUI(this.outputFolderHandle.name, false);
+            
+            console.log('📁 New folder selected and saved:', this.outputFolderHandle.name);
             
         } catch (error) {
             if (error.name !== 'AbortError') {
@@ -702,12 +932,23 @@ class TranscriptionApp {
         this.uploadStartTime = null;
         this.isBatchMode = false;
         this.batchFiles = [];
-        this.outputFolderHandle = null;
+        // Don't reset outputFolderHandle - keep it for next batch
         
-        // Reset processing folder UI
-        if (this.selectedFolder) this.selectedFolder.style.display = 'none';
+        // Reset processing folder UI but keep saved folder if exists
         if (this.processingFolderSection) this.processingFolderSection.style.display = 'none';
-        if (this.folderStatus) this.folderStatus.textContent = 'Files will download individually if no folder is selected';
+        
+        // If we have a saved folder, show it's still selected
+        if (this.outputFolderHandle) {
+            if (this.selectedFolder) this.selectedFolder.style.display = 'flex';
+            if (this.folderStatus) {
+                this.folderStatus.textContent = `Ready to save to: ${this.outputFolderHandle.name}`;
+            }
+        } else {
+            if (this.selectedFolder) this.selectedFolder.style.display = 'none';
+            if (this.folderStatus) {
+                this.folderStatus.textContent = 'Files will download individually if no folder is selected';
+            }
+        }
         
         if (this.timeEstimate) this.timeEstimate.textContent = '';
         if (this.currentFileSection) this.currentFileSection.style.display = 'none';

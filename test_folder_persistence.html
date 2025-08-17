@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Folder Persistence</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .primary {
+            background: #667eea;
+            color: white;
+        }
+        .primary:hover {
+            background: #5a67d8;
+        }
+        .danger {
+            background: #e53e3e;
+            color: white;
+        }
+        .danger:hover {
+            background: #c53030;
+        }
+        .success {
+            background: #48bb78;
+            color: white;
+        }
+        .success:hover {
+            background: #38a169;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+        }
+        .log {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            background: #1a202c;
+            color: #68d391;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Folder Persistence Test</h1>
+        
+        <div class="status" id="status">
+            Ready to test folder persistence functionality
+        </div>
+        
+        <div>
+            <button class="primary" onclick="testSelectFolder()">📁 Select Folder</button>
+            <button class="success" onclick="testRestoreFolder()">🔄 Test Restore</button>
+            <button class="danger" onclick="clearFolder()">🗑️ Clear Saved Folder</button>
+            <button onclick="checkStorage()">🔍 Check Storage</button>
+        </div>
+        
+        <div class="log" id="log">
+            <div class="log-entry">Console log will appear here...</div>
+        </div>
+    </div>
+    
+    <script>
+        let db = null;
+        let folderHandle = null;
+        
+        // Initialize IndexedDB
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('WhisperTranscription', 1);
+                
+                request.onerror = () => {
+                    log('❌ Failed to open IndexedDB: ' + request.error);
+                    reject(request.error);
+                };
+                
+                request.onsuccess = () => {
+                    db = request.result;
+                    log('✅ IndexedDB initialized');
+                    resolve();
+                };
+                
+                request.onupgradeneeded = (event) => {
+                    const database = event.target.result;
+                    if (!database.objectStoreNames.contains('folderHandles')) {
+                        database.createObjectStore('folderHandles', { keyPath: 'id' });
+                        log('📁 Created folderHandles object store');
+                    }
+                };
+            });
+        }
+        
+        // Log function
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        // Update status
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+        
+        // Test folder selection and saving
+        async function testSelectFolder() {
+            try {
+                if (!('showDirectoryPicker' in window)) {
+                    log('❌ File System Access API not supported');
+                    return;
+                }
+                
+                log('📂 Opening folder picker...');
+                folderHandle = await window.showDirectoryPicker();
+                log(`✅ Selected folder: ${folderHandle.name}`);
+                
+                // Save to IndexedDB
+                if (!db) await initDB();
+                
+                const transaction = db.transaction(['folderHandles'], 'readwrite');
+                const store = transaction.objectStore('folderHandles');
+                
+                await store.put({
+                    id: 'outputFolder',
+                    handle: folderHandle,
+                    name: folderHandle.name,
+                    savedAt: new Date().toISOString()
+                });
+                
+                // Save to localStorage
+                localStorage.setItem('savedFolderName', folderHandle.name);
+                localStorage.setItem('savedFolderDate', new Date().toISOString());
+                
+                log(`💾 Saved folder handle to storage`);
+                updateStatus(`Folder saved: ${folderHandle.name}`);
+                
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    log(`❌ Error: ${error.message}`);
+                }
+            }
+        }
+        
+        // Test folder restoration
+        async function testRestoreFolder() {
+            try {
+                const savedName = localStorage.getItem('savedFolderName');
+                if (!savedName) {
+                    log('ℹ️ No saved folder found in localStorage');
+                    updateStatus('No saved folder to restore');
+                    return;
+                }
+                
+                log(`🔍 Found saved folder name: ${savedName}`);
+                
+                if (!db) await initDB();
+                
+                const transaction = db.transaction(['folderHandles'], 'readonly');
+                const store = transaction.objectStore('folderHandles');
+                const request = store.get('outputFolder');
+                
+                request.onsuccess = async () => {
+                    const data = request.result;
+                    if (data && data.handle) {
+                        log(`📦 Retrieved handle from IndexedDB: ${data.name}`);
+                        
+                        // Check permission
+                        const permission = await data.handle.queryPermission({ mode: 'readwrite' });
+                        log(`🔐 Permission status: ${permission}`);
+                        
+                        if (permission === 'granted') {
+                            folderHandle = data.handle;
+                            log(`✅ Restored folder with existing permission`);
+                            updateStatus(`Restored: ${data.name} (permission granted)`);
+                        } else if (permission === 'prompt') {
+                            log(`⚠️ Need to re-request permission`);
+                            const newPermission = await data.handle.requestPermission({ mode: 'readwrite' });
+                            if (newPermission === 'granted') {
+                                folderHandle = data.handle;
+                                log(`✅ Re-authorized folder access`);
+                                updateStatus(`Re-authorized: ${data.name}`);
+                            } else {
+                                log(`❌ Permission denied`);
+                                updateStatus(`Permission denied for: ${data.name}`);
+                            }
+                        }
+                    } else {
+                        log('⚠️ No handle found in IndexedDB');
+                    }
+                };
+                
+            } catch (error) {
+                log(`❌ Restore error: ${error.message}`);
+            }
+        }
+        
+        // Clear saved folder
+        async function clearFolder() {
+            try {
+                // Clear localStorage
+                localStorage.removeItem('savedFolderName');
+                localStorage.removeItem('savedFolderDate');
+                log('🗑️ Cleared localStorage');
+                
+                // Clear IndexedDB
+                if (!db) await initDB();
+                
+                const transaction = db.transaction(['folderHandles'], 'readwrite');
+                const store = transaction.objectStore('folderHandles');
+                await store.delete('outputFolder');
+                
+                log('🗑️ Cleared IndexedDB');
+                
+                folderHandle = null;
+                updateStatus('Cleared all saved folder data');
+                
+            } catch (error) {
+                log(`❌ Clear error: ${error.message}`);
+            }
+        }
+        
+        // Check storage contents
+        async function checkStorage() {
+            log('--- Storage Check ---');
+            
+            // Check localStorage
+            const savedName = localStorage.getItem('savedFolderName');
+            const savedDate = localStorage.getItem('savedFolderDate');
+            log(`localStorage: ${savedName ? `${savedName} (saved ${savedDate})` : 'empty'}`);
+            
+            // Check IndexedDB
+            if (!db) await initDB();
+            
+            const transaction = db.transaction(['folderHandles'], 'readonly');
+            const store = transaction.objectStore('folderHandles');
+            const request = store.get('outputFolder');
+            
+            request.onsuccess = () => {
+                const data = request.result;
+                if (data) {
+                    log(`IndexedDB: ${data.name} (saved ${data.savedAt})`);
+                } else {
+                    log('IndexedDB: empty');
+                }
+            };
+            
+            // Check current handle
+            if (folderHandle) {
+                log(`Current handle: ${folderHandle.name}`);
+            } else {
+                log('Current handle: none');
+            }
+        }
+        
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', async () => {
+            await initDB();
+            log('🚀 Test page ready');
+            checkStorage();
+        });
+    </script>
+</body>
+</html>

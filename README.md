@@ -8,10 +8,11 @@ A modern web-based interface for transcribing audio files locally using OpenAI's
 
 ## ✨ Features
 
-### 🎯 **Batch Processing (NEW)**
+### 🎯 **Batch Processing**
 - **Multi-file Upload**: Drag and drop multiple audio files for overnight processing
 - **Sequential Processing**: Files process one-by-one to prevent system overload
-- **Auto-save**: Transcripts save automatically next to original files as `filename.txt`
+- **Persistent Folder Selection**: Output folder choice remembered across sessions
+- **Auto-save**: Transcripts save automatically to your selected folder as `filename.txt`
 - **Smart Error Handling**: Failed files are skipped, batch continues processing
 
 ### 🌟 **Core Features**
@@ -82,12 +83,13 @@ pytest -v
 3. Watch real-time progress as it transcribes
 4. Download the completed transcript
 
-### Batch Processing (NEW)
+### Batch Processing
 1. Drag multiple audio files at once onto the upload zone
-2. Files are queued and processed sequentially
-3. Each transcript automatically saves next to its source file
-4. Monitor overall progress and individual file status
-5. Perfect for overnight processing of large batches
+2. Optionally select output folder (remembered for future sessions)
+3. Files are queued and processed sequentially
+4. Each transcript automatically saves to your selected folder
+5. Monitor overall progress and individual file status
+6. Perfect for overnight processing of large batches
 
 ### Keyboard Shortcuts
 - **Tab**: Navigate through interface

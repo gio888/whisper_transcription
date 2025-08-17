@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2025-01-17
+
+### Added
+- **💾 Folder Persistence**: Output folder selection now persists across sessions using IndexedDB
+- **🔐 Smart Permission Management**: Automatic permission restoration with one-click re-authorization
+- **🗑️ Clear Folder Option**: Added button to clear saved folder selection when needed
+- **📂 Session Memory**: Selected folders remembered across browser restarts and page refreshes
+
+### Enhanced
+- **Better UX**: No more re-selecting the same output folder every session
+- **Visual Indicators**: Shows "(restored from previous session)" for restored folders
+- **Permission Handling**: Graceful handling of expired permissions with re-authorization UI
+
+### Technical
+- **IndexedDB Integration**: FileSystemDirectoryHandle persistence across sessions
+- **localStorage Metadata**: Quick folder name reference without database access
+- **Permission API**: Smart permission checking and re-request flow
+
 ## [2.3.0] - 2025-01-16
 
 ### Added

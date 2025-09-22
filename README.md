@@ -51,28 +51,122 @@ python3 --version
 
 ### 1. Clone and Setup
 ```bash
-git clone https://github.com/gio888/whisper_transcription.git
+git clone https://github.com/yourusername/whisper_transcription.git
 cd whisper_transcription
 
 # One-command setup (downloads model + installs dependencies)
 ./setup.sh
 ```
 
-### 2. Start the Service
+### 2. Configure Environment (REQUIRED)
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit .env with your configuration
+# At minimum, configure:
+# - LLM API keys (or use local Ollama)
+# - Notion integration (optional)
+# - Company context for better analysis
+nano .env  # or use your preferred editor
+```
+
+### 3. Start the Service
 ```bash
 ./run.sh
 ```
 
-### 3. Open in Browser
+### 4. Open in Browser
 Navigate to http://localhost:8000
 
-### 4. Run Tests (Recommended before batch processing)
+### 5. Run Tests (Recommended before batch processing)
 ```bash
 # Quick smoke test (5 seconds) - Run this before overnight batches!
 python smoke_test.py
 
 # Full test suite
 pytest -v
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+All user-specific configuration is managed through the `.env` file. Copy `.env.example` to `.env` and customize:
+
+#### LLM Providers (Choose one or more)
+```bash
+# OpenAI (for meeting analysis)
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4o-mini
+
+# Anthropic (alternative/fallback)
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+ANTHROPIC_MODEL=claude-3-haiku-20240307
+
+# Local Ollama (FREE, no API key needed)
+DEFAULT_PROVIDER=local
+LOCAL_MODEL=qwen2.5:7b
+LOCAL_API_URL=http://localhost:11434
+```
+
+#### Notion Integration (Optional)
+```bash
+# Get your API key from https://www.notion.so/my-integrations
+NOTION_API_KEY=your_notion_api_key_here
+
+# Database IDs (found in Notion URLs after the workspace name)
+NOTION_INTERACTIONS_DB_ID=your_database_id_here
+NOTION_PROJECTS_DB_ID=your_database_id_here
+NOTION_TASKS_DB_ID=your_database_id_here
+NOTION_CONTACTS_DB_ID=your_database_id_here
+```
+
+#### Business Context Customization
+```bash
+# Improve analysis accuracy with your business context
+COMPANY_CONTEXT="We are a software consultancy specializing in web applications.
+Common meeting topics include:
+- Client requirements and project scope
+- Technical architecture decisions
+- Sprint planning and retrospectives
+- Team coordination and resource allocation"
+```
+
+### Setting up Notion Integration
+
+1. **Create Notion Integration:**
+   - Go to https://www.notion.so/my-integrations
+   - Click "New integration"
+   - Give it a name (e.g., "Whisper Transcription")
+   - Copy the API key to your `.env` file
+
+2. **Share Databases with Integration:**
+   - Open each database in Notion
+   - Click "..." menu → "Add connections"
+   - Select your integration
+
+3. **Get Database IDs:**
+   - Open database in Notion
+   - Look at the URL: `https://notion.so/workspace/DATABASE_ID_HERE?v=...`
+   - Copy the 32-character ID to your `.env` file
+
+### Using Local LLM with Ollama
+
+For completely free, private meeting analysis:
+
+```bash
+# Install Ollama
+brew install ollama
+
+# Start Ollama service
+ollama serve
+
+# Pull a model (one-time download)
+ollama pull qwen2.5:7b
+
+# Configure in .env
+DEFAULT_PROVIDER=local
+LOCAL_MODEL=qwen2.5:7b
 ```
 
 ## 📖 Usage
@@ -114,16 +208,43 @@ pytest -v
 ### File Structure
 ```
 whisper_transcription/
-├── app.py              # FastAPI server
-├── transcriber.py      # Whisper integration
-├── config.py          # Configuration
-├── static/            # Web interface
-│   ├── index.html     # Main UI
-│   ├── app.js         # Client logic
-│   └── style.css      # Styling
-├── setup.sh           # Installation script
-├── run.sh            # Start script
-└── requirements.txt   # Python dependencies
+├── app.py                    # FastAPI server
+├── transcriber.py            # Whisper integration
+├── config.py                 # Core configuration
+├── config_validator.py       # Configuration validation
+├── smoke_test.py            # Quick validation tests
+├──
+├── src/                     # Core application modules
+│   ├── analyzers/           # Meeting analysis components
+│   │   ├── meeting_analyzer.py
+│   │   └── analyzer_config.py
+│   ├── providers/           # LLM provider integrations
+│   │   └── local_llm_provider.py
+│   └── integrations/        # External service integrations
+│       ├── notion_sync.py
+│       └── notion_config.py
+├──
+├── tests/                   # All test files
+│   ├── test_api.py
+│   ├── test_websocket.py
+│   └── test_*.py
+├──
+├── scripts/                 # Utility scripts
+│   ├── check_secrets.py
+│   └── start_ollama_optimized.sh
+├──
+├── dev/                     # Development utilities
+│   ├── debug_analysis_parsing.py
+│   └── inspect_notion_databases.py
+├──
+├── static/                  # Web interface
+│   ├── index.html          # Main UI
+│   ├── app.js              # Client logic
+│   └── style.css           # Styling
+├──
+├── setup.sh                # Installation script
+├── run.sh                  # Start script
+└── requirements.txt        # Python dependencies
 ```
 
 ## 🐛 Troubleshooting

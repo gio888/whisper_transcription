@@ -158,8 +158,78 @@
 
         <section id="resultSection" class="result-section" style="display: none;" aria-labelledby="result-heading">
             <h2 id="result-heading"><span aria-hidden="true">✅</span> Transcription Complete</h2>
-            <div class="transcript-preview" id="transcriptPreview" aria-label="Transcript preview"></div>
+            
+            <!-- Tab Navigation -->
+            <div class="tabs" id="resultTabs">
+                <button class="tab-button active" data-tab="transcript" aria-selected="true">
+                    Raw Transcript
+                </button>
+                <button class="tab-button" data-tab="analysis" aria-selected="false" style="display: none;" id="analysisTabBtn">
+                    Meeting Analysis
+                </button>
+                <button class="tab-button" data-tab="cleaned" aria-selected="false" style="display: none;" id="cleanedTabBtn">
+                    Cleaned Transcript
+                </button>
+            </div>
+            
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <!-- Raw Transcript Tab -->
+                <div class="tab-pane active" id="transcriptTab">
+                    <div class="transcript-preview" id="transcriptPreview" aria-label="Transcript preview"></div>
+                </div>
+                
+                <!-- Analysis Tab -->
+                <div class="tab-pane" id="analysisTab" style="display: none;">
+                    <div class="analysis-content" id="analysisContent">
+                        <div class="analysis-section">
+                            <h3>📊 Meeting Summary</h3>
+                            <div id="analysisSummary" class="analysis-text"></div>
+                        </div>
+                        <div class="analysis-section">
+                            <h3>✅ Key Decisions</h3>
+                            <ul id="analysisDecisions" class="analysis-list"></ul>
+                        </div>
+                        <div class="analysis-section">
+                            <h3>💬 Discussion Points</h3>
+                            <ul id="analysisDiscussion" class="analysis-list"></ul>
+                        </div>
+                        <div class="analysis-section">
+                            <h3>📋 Action Items</h3>
+                            <div id="analysisActions" class="action-items"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Cleaned Transcript Tab -->
+                <div class="tab-pane" id="cleanedTab" style="display: none;">
+                    <div class="transcript-preview" id="cleanedTranscript"></div>
+                </div>
+            </div>
+            
+            <!-- Analysis Progress -->
+            <div id="analysisProgress" style="display: none;" class="analysis-progress">
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="analysisProgressBar"></div>
+                </div>
+                <p id="analysisStatus">Analyzing meeting content...</p>
+            </div>
+            
             <div class="action-buttons">
+                <button id="analyzeBtn" class="btn btn-success" aria-label="Analyze meeting transcript" style="display: none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M9 11H3v2h6v-2zm0-4H3v2h6V7zm0 8H3v2h6v-2zm12-8h-6v2h6V7zm0 4h-6v2h6v-2zm0 4h-6v2h6v-2z"></path>
+                    </svg>
+                    Analyze Meeting
+                </button>
+                
+                <!-- Sync to Notion button -->
+                <button id="notionSyncBtn" class="btn btn-notion" aria-label="Sync to Notion" style="display: none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"></path>
+                    </svg>
+                    Sync to Notion
+                </button>
                 <button id="downloadBtn" class="btn btn-primary" aria-label="Download transcript as text file">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -168,6 +238,19 @@
                     </svg>
                     Download Transcript
                 </button>
+                
+                <!-- Export dropdown for analysis results -->
+                <div class="export-dropdown" id="exportDropdown" style="display: none;">
+                    <button class="btn btn-primary dropdown-toggle" id="exportBtn">
+                        Export Analysis ▼
+                    </button>
+                    <div class="dropdown-menu" id="exportMenu" style="display: none;">
+                        <button class="dropdown-item" data-format="markdown">Export as Markdown</button>
+                        <button class="dropdown-item" data-format="text">Export as Text</button>
+                        <button class="dropdown-item" data-format="json">Export as JSON</button>
+                    </div>
+                </div>
+                
                 <button id="newFileBtn" class="btn btn-secondary" aria-label="Start new transcription">
                     Transcribe Another File
                 </button>
@@ -185,6 +268,22 @@
     <footer role="contentinfo">
         <p>Powered by Whisper.cpp • Running locally on your machine • Processing time ≈ audio duration</p>
     </footer>
+    
+    <!-- Notion Sync Modal -->
+    <div id="notionSyncModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Syncing to Notion</h2>
+            <div class="sync-progress" id="syncProgress">
+                <div class="spinner"></div>
+                <p id="syncStatus">Connecting to Notion...</p>
+            </div>
+            <div class="sync-results" id="syncResults" style="display: none;">
+                <h3>Sync Complete!</h3>
+                <div id="syncSummary"></div>
+                <button class="btn btn-primary" id="closeSyncModal">Close</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/app.js"></script>
 </body>

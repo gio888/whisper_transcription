@@ -1,0 +1,77 @@
+# Pre-commit hooks for security and code quality
+# Install with: pip install pre-commit && pre-commit install
+
+repos:
+  # Secret detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: .*/tests/.*
+
+  # GitHub's secret scanning patterns
+  - repo: local
+    hooks:
+      - id: check-api-keys
+        name: Check for API Keys
+        entry: python scripts/check_secrets.py
+        language: python
+        pass_filenames: false
+        always_run: true
+
+  # Prevent large files
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-json
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-case-conflict
+      - id: check-merge-conflict
+
+  # Python specific
+  - repo: https://github.com/psf/black
+    rev: 23.10.0
+    hooks:
+      - id: black
+        language_version: python3.11
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.1.0
+    hooks:
+      - id: flake8
+        args: ['--max-line-length=100', '--ignore=E203,W503']
+
+  # Security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: ['-ll', '--skip', 'B101,B601']
+
+  # Custom checks
+  - repo: local
+    hooks:
+      - id: check-env-example
+        name: Ensure .env.example is updated
+        entry: python scripts/check_env_sync.py
+        language: python
+        pass_filenames: false
+        files: \.env$
+
+      - id: no-hardcoded-ids
+        name: Check for hardcoded IDs
+        entry: python scripts/check_hardcoded.py
+        language: python
+        files: \.(py|js)$
+
+      - id: validate-config
+        name: Validate configuration
+        entry: python config_validator.py
+        language: python
+        pass_filenames: false
+        always_run: true

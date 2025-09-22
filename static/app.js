@@ -43,6 +43,38 @@ class TranscriptionApp {
         this.selectedFolderPath = document.getElementById('selectedFolderPath');
         this.folderStatus = document.getElementById('folderStatus');
         
+        // Analysis UI elements
+        this.analyzeBtn = document.getElementById('analyzeBtn');
+        this.analysisProgress = document.getElementById('analysisProgress');
+        this.analysisProgressBar = document.getElementById('analysisProgressBar');
+        this.analysisStatus = document.getElementById('analysisStatus');
+        this.analysisTabBtn = document.getElementById('analysisTabBtn');
+        this.cleanedTabBtn = document.getElementById('cleanedTabBtn');
+        this.analysisSummary = document.getElementById('analysisSummary');
+        this.analysisDecisions = document.getElementById('analysisDecisions');
+        this.analysisDiscussion = document.getElementById('analysisDiscussion');
+        this.analysisActions = document.getElementById('analysisActions');
+        this.cleanedTranscript = document.getElementById('cleanedTranscript');
+        
+        // Export elements
+        this.exportDropdown = document.getElementById('exportDropdown');
+        this.exportBtn = document.getElementById('exportBtn');
+        this.exportMenu = document.getElementById('exportMenu');
+        this.exportItems = document.querySelectorAll('.dropdown-item');
+        
+        // Notion sync elements
+        this.notionSyncBtn = document.getElementById('notionSyncBtn');
+        this.notionSyncModal = document.getElementById('notionSyncModal');
+        this.syncProgress = document.getElementById('syncProgress');
+        this.syncResults = document.getElementById('syncResults');
+        this.syncStatus = document.getElementById('syncStatus');
+        this.syncSummary = document.getElementById('syncSummary');
+        this.closeSyncModal = document.getElementById('closeSyncModal');
+        
+        // Tab elements
+        this.tabButtons = document.querySelectorAll('.tab-button');
+        this.tabPanes = document.querySelectorAll('.tab-pane');
+        
         // Debug logging
         console.log('🔍 TranscriptionApp initialized');
         console.log('🔍 processingFolderSection element:', this.processingFolderSection);
@@ -303,6 +335,37 @@ class TranscriptionApp {
         // Button events
         this.downloadBtn?.addEventListener('click', () => this.downloadTranscript());
         this.newFileBtn?.addEventListener('click', () => this.reset());
+        
+        // Analysis event listeners
+        this.analyzeBtn?.addEventListener('click', () => this.startAnalysis());
+        
+        // Tab navigation
+        this.tabButtons?.forEach(button => {
+            button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+        });
+        
+        // Export dropdown
+        this.exportBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleExportMenu();
+        });
+        
+        this.exportItems?.forEach(item => {
+            item.addEventListener('click', (e) => {
+                const format = e.target.dataset.format;
+                this.exportAnalysis(format);
+                this.hideExportMenu();
+            });
+        });
+        
+        // Close export dropdown when clicking outside
+        document.addEventListener('click', () => {
+            this.hideExportMenu();
+        });
+        
+        // Notion sync event listeners
+        this.notionSyncBtn?.addEventListener('click', () => this.syncToNotion());
+        this.closeSyncModal?.addEventListener('click', () => this.closeNotionModal());
         this.retryBtn?.addEventListener('click', () => this.reset());
         
         // Batch UI events
@@ -616,16 +679,32 @@ class TranscriptionApp {
         this.batchSection.style.display = 'block';
     }
     
-    showResult(transcript) {
+    async showResult(transcript) {
         this.progressSection.style.display = 'none';
         this.batchSection.style.display = 'none';
         this.resultSection.style.display = 'block';
+        
+        // Store transcript for analysis
+        this.currentTranscript = transcript;
         
         const preview = transcript.length > 500 
             ? transcript.substring(0, 500) + '...\n\n[Full transcript available in download]'
             : transcript;
         
         this.transcriptPreview.textContent = preview;
+        
+        // Check if analysis is available and show button
+        console.log('🔍 Checking if analysis is available...');
+        const analysisAvailable = await this.checkAnalysisAvailable();
+        console.log('🔍 Analysis available:', analysisAvailable);
+        console.log('🔍 Analyze button element:', this.analyzeBtn);
+        
+        if (analysisAvailable && this.analyzeBtn) {
+            this.analyzeBtn.style.display = 'inline-block';
+            console.log('✅ Analyze button shown');
+        } else {
+            console.log('❌ Analyze button not shown - available:', analysisAvailable, 'button exists:', !!this.analyzeBtn);
+        }
     }
     
     showError(title, helpText = '') {
@@ -923,6 +1002,24 @@ class TranscriptionApp {
         this.errorSection.style.display = 'none';
         this.batchSection.style.display = 'none';
         
+        // Reset analysis UI
+        if (this.analysisProgress) this.analysisProgress.style.display = 'none';
+        if (this.analyzeBtn) {
+            this.analyzeBtn.style.display = 'none';
+            this.analyzeBtn.disabled = false;
+        }
+        if (this.analysisTabBtn) this.analysisTabBtn.style.display = 'none';
+        if (this.cleanedTabBtn) this.cleanedTabBtn.style.display = 'none';
+        if (this.exportDropdown) this.exportDropdown.style.display = 'none';
+        if (this.notionSyncBtn) this.notionSyncBtn.style.display = 'none';
+        
+        // Reset to transcript tab
+        this.switchTab('transcript');
+        
+        // Clear analysis data
+        this.currentTranscript = null;
+        this.currentAnalysis = null;
+        
         this.fileInput.value = '';
         if (this.progressBar) this.progressBar.style.width = '0%';
         if (this.batchProgressBar) this.batchProgressBar.style.width = '0%';
@@ -957,6 +1054,440 @@ class TranscriptionApp {
             this.ws.close();
             this.ws = null;
         }
+    }
+    
+    // ==================== Analysis Methods ====================
+    
+    async checkAnalysisAvailable() {
+        try {
+            const response = await fetch('/api/analysis-status');
+            const data = await response.json();
+            return data.enabled;
+        } catch (error) {
+            console.error('Failed to check analysis status:', error);
+            return false;
+        }
+    }
+    
+    async startAnalysis() {
+        if (!this.currentTranscript) {
+            this.showError('No transcript available', 'Please transcribe a file first.');
+            return;
+        }
+        
+        // Show progress UI
+        this.analysisProgress.style.display = 'block';
+        this.analyzeBtn.disabled = true;
+        this.analysisProgressBar.style.width = '0%';
+        this.analysisStatus.textContent = 'Starting analysis...';
+        
+        const analysisId = this.currentSessionId || `analysis_${Date.now()}`;
+        
+        // Connect to WebSocket for real-time updates
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/analysis/${analysisId}`;
+        
+        const ws = new WebSocket(wsUrl);
+        
+        ws.onopen = () => {
+            console.log('Analysis WebSocket connected');
+            // Send transcript to analyze
+            ws.send(JSON.stringify({
+                transcript: this.currentTranscript
+            }));
+        };
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            this.handleAnalysisUpdate(data);
+        };
+        
+        ws.onerror = (error) => {
+            console.error('Analysis WebSocket error:', error);
+            this.showError('Analysis Error', 'Failed to connect to analysis service.');
+            this.analysisProgress.style.display = 'none';
+            this.analyzeBtn.disabled = false;
+        };
+        
+        ws.onclose = () => {
+            console.log('Analysis WebSocket closed');
+        };
+    }
+    
+    handleAnalysisUpdate(data) {
+        // Update progress bar
+        if (data.progress) {
+            this.analysisProgressBar.style.width = `${data.progress}%`;
+        }
+        
+        // Update status message
+        if (data.message) {
+            this.analysisStatus.textContent = data.message;
+        }
+        
+        // Handle completion
+        if (data.status === 'completed' && data.result) {
+            this.displayAnalysisResults(data.result);
+            this.analysisProgress.style.display = 'none';
+            this.analyzeBtn.style.display = 'none';
+            
+            // Show analysis tabs and export dropdown
+            this.analysisTabBtn.style.display = 'inline-block';
+            this.cleanedTabBtn.style.display = 'inline-block';
+            this.exportDropdown.style.display = 'inline-block';
+            
+            // Check if Notion is available and show sync button
+            this.checkNotionAvailable();
+        }
+        
+        // Handle errors
+        if (data.status === 'error') {
+            this.showError('Analysis Failed', data.message || 'An error occurred during analysis.');
+            this.analysisProgress.style.display = 'none';
+            this.analyzeBtn.disabled = false;
+        }
+    }
+    
+    displayAnalysisResults(result) {
+        // Display meeting summary
+        if (result.summary) {
+            this.analysisSummary.textContent = result.summary;
+        }
+        
+        // Display key decisions
+        if (result.key_decisions) {
+            this.analysisDecisions.innerHTML = '';
+            result.key_decisions.forEach(decision => {
+                const li = document.createElement('li');
+                li.textContent = decision;
+                this.analysisDecisions.appendChild(li);
+            });
+        }
+        
+        // Display discussion points
+        if (result.discussion_points) {
+            this.analysisDiscussion.innerHTML = '';
+            result.discussion_points.forEach(point => {
+                const li = document.createElement('li');
+                li.textContent = point;
+                this.analysisDiscussion.appendChild(li);
+            });
+        }
+        
+        // Display action items
+        if (result.action_items) {
+            this.analysisActions.innerHTML = '';
+            result.action_items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'action-item';
+                
+                const task = document.createElement('div');
+                task.className = 'action-item-task';
+                task.textContent = item.task;
+                div.appendChild(task);
+                
+                const meta = document.createElement('div');
+                meta.className = 'action-item-meta';
+                
+                if (item.owner) {
+                    const owner = document.createElement('span');
+                    owner.className = 'action-item-owner';
+                    owner.textContent = `Owner: ${item.owner}`;
+                    meta.appendChild(owner);
+                }
+                
+                if (item.deadline) {
+                    const deadline = document.createElement('span');
+                    deadline.className = 'action-item-deadline';
+                    deadline.textContent = `Due: ${item.deadline}`;
+                    meta.appendChild(deadline);
+                }
+                
+                if (meta.children.length > 0) {
+                    div.appendChild(meta);
+                }
+                
+                this.analysisActions.appendChild(div);
+            });
+        }
+        
+        // Display cleaned transcript
+        if (result.cleaned_transcript) {
+            this.cleanedTranscript.textContent = result.cleaned_transcript;
+        }
+        
+        // Store analysis result for export
+        this.currentAnalysis = result;
+    }
+    
+    switchTab(tabName) {
+        // Update tab buttons
+        this.tabButtons.forEach(button => {
+            if (button.dataset.tab === tabName) {
+                button.classList.add('active');
+                button.setAttribute('aria-selected', 'true');
+            } else {
+                button.classList.remove('active');
+                button.setAttribute('aria-selected', 'false');
+            }
+        });
+        
+        // Update tab panes
+        this.tabPanes.forEach(pane => {
+            if (pane.id === `${tabName}Tab`) {
+                pane.classList.add('active');
+                pane.style.display = 'block';
+            } else {
+                pane.classList.remove('active');
+                pane.style.display = 'none';
+            }
+        });
+    }
+    
+    async exportAnalysis(format = 'json') {
+        if (!this.currentAnalysis) {
+            this.showError('No Analysis', 'Please analyze the transcript first.');
+            return;
+        }
+        
+        let content, filename, mimeType;
+        
+        switch (format) {
+            case 'json':
+                content = JSON.stringify(this.currentAnalysis, null, 2);
+                filename = `analysis_${this.currentSessionId}.json`;
+                mimeType = 'application/json';
+                break;
+            
+            case 'markdown':
+                content = this.convertAnalysisToMarkdown(this.currentAnalysis);
+                filename = `analysis_${this.currentSessionId}.md`;
+                mimeType = 'text/markdown';
+                break;
+            
+            case 'text':
+                content = this.convertAnalysisToText(this.currentAnalysis);
+                filename = `analysis_${this.currentSessionId}.txt`;
+                mimeType = 'text/plain';
+                break;
+            
+            default:
+                return;
+        }
+        
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+    
+    convertAnalysisToMarkdown(analysis) {
+        let markdown = '# Meeting Analysis\n\n';
+        
+        markdown += '## Summary\n\n' + analysis.summary + '\n\n';
+        
+        markdown += '## Key Decisions\n\n';
+        analysis.key_decisions.forEach(decision => {
+            markdown += `- ${decision}\n`;
+        });
+        markdown += '\n';
+        
+        markdown += '## Discussion Points\n\n';
+        analysis.discussion_points.forEach(point => {
+            markdown += `- ${point}\n`;
+        });
+        markdown += '\n';
+        
+        markdown += '## Action Items\n\n';
+        analysis.action_items.forEach(item => {
+            markdown += `### ${item.task}\n`;
+            if (item.owner) markdown += `- **Owner:** ${item.owner}\n`;
+            if (item.deadline) markdown += `- **Deadline:** ${item.deadline}\n`;
+            markdown += '\n';
+        });
+        
+        markdown += '## Cleaned Transcript\n\n';
+        markdown += analysis.cleaned_transcript;
+        
+        return markdown;
+    }
+    
+    convertAnalysisToText(analysis) {
+        let text = 'MEETING ANALYSIS\n' + '='.repeat(50) + '\n\n';
+        
+        text += 'SUMMARY\n' + '-'.repeat(30) + '\n' + analysis.summary + '\n\n';
+        
+        text += 'KEY DECISIONS\n' + '-'.repeat(30) + '\n';
+        analysis.key_decisions.forEach(decision => {
+            text += `• ${decision}\n`;
+        });
+        text += '\n';
+        
+        text += 'DISCUSSION POINTS\n' + '-'.repeat(30) + '\n';
+        analysis.discussion_points.forEach(point => {
+            text += `• ${point}\n`;
+        });
+        text += '\n';
+        
+        text += 'ACTION ITEMS\n' + '-'.repeat(30) + '\n';
+        analysis.action_items.forEach(item => {
+            text += `Task: ${item.task}\n`;
+            if (item.owner) text += `Owner: ${item.owner}\n`;
+            if (item.deadline) text += `Deadline: ${item.deadline}\n`;
+            text += '\n';
+        });
+        
+        text += 'CLEANED TRANSCRIPT\n' + '-'.repeat(30) + '\n';
+        text += analysis.cleaned_transcript;
+        
+        return text;
+    }
+    
+    toggleExportMenu() {
+        if (this.exportMenu.style.display === 'none' || this.exportMenu.style.display === '') {
+            this.exportMenu.style.display = 'block';
+        } else {
+            this.exportMenu.style.display = 'none';
+        }
+    }
+    
+    hideExportMenu() {
+        if (this.exportMenu) {
+            this.exportMenu.style.display = 'none';
+        }
+    }
+    
+    // ==================== Notion Integration ====================
+    
+    async checkNotionAvailable() {
+        try {
+            console.log('🔍 Checking Notion availability...');
+            const response = await fetch('/api/notion-status');
+            const data = await response.json();
+            console.log('🔍 Notion status:', data);
+            
+            if (data.enabled && data.connected && this.notionSyncBtn) {
+                this.notionSyncBtn.style.display = 'inline-block';
+                console.log('✅ Notion integration available - button shown');
+            } else {
+                console.log('❌ Notion not available - enabled:', data.enabled, 'connected:', data.connected, 'button exists:', !!this.notionSyncBtn);
+            }
+        } catch (error) {
+            console.error('Failed to check Notion status:', error);
+        }
+    }
+    
+    async syncToNotion() {
+        if (!this.currentAnalysis) {
+            this.showError('No Analysis', 'Please analyze the transcript first.');
+            return;
+        }
+        
+        // Show modal
+        this.notionSyncModal.style.display = 'flex';
+        this.syncProgress.style.display = 'block';
+        this.syncResults.style.display = 'none';
+        this.syncStatus.textContent = 'Connecting to Notion...';
+        
+        try {
+            // Prepare the request
+            const requestBody = {
+                analysis_data: this.currentAnalysis
+            };
+            
+            // Update status
+            this.syncStatus.textContent = 'Creating meeting in Notion...';
+            
+            // Send sync request
+            const response = await fetch('/api/sync-to-notion', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+            
+            const result = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(result.detail || 'Sync failed');
+            }
+            
+            // Log results to console
+            console.log('Notion sync result:', result);
+            
+            // Display results
+            this.displaySyncResults(result);
+            
+        } catch (error) {
+            console.error('Notion sync error:', error);
+            this.displaySyncError(error.message);
+        }
+    }
+    
+    displaySyncResults(result) {
+        this.syncProgress.style.display = 'none';
+        this.syncResults.style.display = 'block';
+        
+        let summaryHTML = '';
+        
+        if (result.success) {
+            summaryHTML += '<p class="sync-success">✅ Sync completed successfully!</p>';
+        }
+        
+        if (result.meeting && result.meeting.id) {
+            summaryHTML += `<p class="sync-success">📄 Meeting created in Interactions Registry</p>`;
+            if (result.meeting.url) {
+                summaryHTML += `<p><a href="${result.meeting.url}" target="_blank">Open in Notion →</a></p>`;
+            }
+        }
+        
+        if (result.tasks) {
+            if (result.tasks.created > 0) {
+                summaryHTML += `<p class="sync-success">✅ ${result.tasks.created} task(s) created</p>`;
+            }
+            
+            if (result.tasks.failed > 0) {
+                summaryHTML += `<p class="sync-warning">⚠️ ${result.tasks.failed} task(s) failed to create</p>`;
+                
+                // Show failed task details
+                if (result.tasks.details && result.tasks.details.failed) {
+                    summaryHTML += '<details><summary>Failed tasks</summary><ul>';
+                    result.tasks.details.failed.forEach(task => {
+                        summaryHTML += `<li>${task.task}: ${task.error}</li>`;
+                    });
+                    summaryHTML += '</ul></details>';
+                }
+            }
+        }
+        
+        if (result.errors && result.errors.length > 0) {
+            summaryHTML += '<p class="sync-error">Errors:</p><ul>';
+            result.errors.forEach(error => {
+                summaryHTML += `<li class="sync-error">${error}</li>`;
+            });
+            summaryHTML += '</ul>';
+        }
+        
+        this.syncSummary.innerHTML = summaryHTML;
+    }
+    
+    displaySyncError(message) {
+        this.syncProgress.style.display = 'none';
+        this.syncResults.style.display = 'block';
+        
+        this.syncSummary.innerHTML = `
+            <p class="sync-error">❌ Sync failed</p>
+            <p class="sync-error">${message}</p>
+            <p>Please check your Notion integration settings and try again.</p>
+        `;
+    }
+    
+    closeNotionModal() {
+        this.notionSyncModal.style.display = 'none';
     }
 }
 

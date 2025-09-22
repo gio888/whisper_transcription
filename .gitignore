@@ -49,7 +49,38 @@ dist/
 # Environment variables
 .env
 .env.local
+.env.production
+.env.development
+.env.test
 
 # Temporary files
 tmp/
 temp/
+
+# Claude Code settings (contains personal paths)
+.claude/
+
+# Business/Analysis data (may contain sensitive information)
+analysis_results/
+
+# Notion debug files (may contain API responses and database schemas)
+notion_api_request_debug.json
+notion_database_schema.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Local test outputs
+test_*.json
+*_test.json
+
+# Session data
+sessions/
+
+# Development utilities (not needed for production)
+dev/
+
+# Pre-commit hooks cache
+.pre-commit-config.yaml.bak

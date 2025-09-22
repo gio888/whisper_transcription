@@ -14,7 +14,7 @@ WHISPER_MODEL_PATH = MODEL_DIR / WHISPER_MODEL
 
 WHISPER_CONFIG = {
     "model": str(WHISPER_MODEL_PATH),
-    "language": "en",
+    "language": "auto",  # Changed from "en" to "auto" for Filipino/Taglish support
     "threads": 8,
     "processors": 4,
     "output_format": "txt",

@@ -118,35 +118,46 @@ def test_json_serialization() -> bool:
 def test_configuration() -> bool:
     """Test that configuration is valid."""
     print(f"\n{Colors.BOLD}Testing configuration...{Colors.RESET}")
-    
+
     try:
+        # First run the comprehensive configuration validator
+        from config_validator import validate_config
+
+        # Capture validation result
+        config_valid = validate_config(exit_on_error=False)
+        print_test("Configuration validation", config_valid)
+
+        if not config_valid:
+            return False
+
+        # Then check basic config items
         from config import UPLOAD_DIR, STATIC_DIR, MAX_FILE_SIZE, ALLOWED_EXTENSIONS
-        
+
         # Check directories exist
         if not UPLOAD_DIR.exists():
             print_test("Upload directory exists", False, f"{UPLOAD_DIR} not found")
             return False
         print_test("Upload directory exists", True)
-        
+
         if not STATIC_DIR.exists():
             print_test("Static directory exists", False, f"{STATIC_DIR} not found")
             return False
         print_test("Static directory exists", True)
-        
+
         # Check file size limit is reasonable
         if MAX_FILE_SIZE <= 0 or MAX_FILE_SIZE > 1024 * 1024 * 1024:  # 1GB max
             print_test("MAX_FILE_SIZE configuration", False, f"Invalid size: {MAX_FILE_SIZE}")
             return False
         print_test("MAX_FILE_SIZE configuration", True)
-        
+
         # Check allowed extensions
         if not ALLOWED_EXTENSIONS or not all(ext.startswith('.') for ext in ALLOWED_EXTENSIONS):
             print_test("ALLOWED_EXTENSIONS configuration", False, "Invalid extensions")
             return False
         print_test("ALLOWED_EXTENSIONS configuration", True)
-        
+
         return True
-        
+
     except Exception as e:
         print_test("Configuration", False, str(e))
         return False

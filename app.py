@@ -9,6 +9,10 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
@@ -23,6 +27,36 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s:%(name)s:%(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Import meeting analyzer if API keys are configured
+try:
+    from src.analyzers.meeting_analyzer import get_analyzer
+    from src.analyzers.analyzer_config import AnalyzerConfig
+    # Don't create analyzer immediately, just check if we can
+    try:
+        AnalyzerConfig.validate_config()
+        ANALYSIS_ENABLED = True
+    except ValueError as e:
+        logger.warning(f"Meeting analysis disabled: {e}")
+        ANALYSIS_ENABLED = False
+except ImportError as e:
+    logger.warning(f"Meeting analysis disabled: {e}")
+    ANALYSIS_ENABLED = False
+
+# Import Notion sync if API key is configured
+try:
+    from src.integrations.notion_sync import get_notion_sync
+    from src.integrations.notion_config import NotionConfig
+    try:
+        NotionConfig.validate_config()
+        NOTION_ENABLED = True
+        logger.info("Notion integration enabled")
+    except ValueError as e:
+        logger.warning(f"Notion integration disabled: {e}")
+        NOTION_ENABLED = False
+except ImportError as e:
+    logger.warning(f"Notion integration disabled: {e}")
+    NOTION_ENABLED = False
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -293,6 +327,62 @@ async def batch_websocket_endpoint(websocket: WebSocket, batch_id: str):
         if batch_id in active_connections:
             del active_connections[batch_id]
 
+@app.websocket("/ws/analysis/{analysis_id}")
+async def websocket_analysis_endpoint(websocket: WebSocket, analysis_id: str):
+    """WebSocket endpoint for real-time analysis progress"""
+    
+    if not ANALYSIS_ENABLED:
+        await websocket.close(code=1008, reason="Analysis not configured")
+        return
+    
+    await websocket.accept()
+    logger.info(f"Analysis WebSocket connected: {analysis_id}")
+    
+    try:
+        # Get transcript from session
+        transcript = None
+        
+        # Check if there's a transcript file
+        transcript_files = list(UPLOAD_DIR.glob(f"{analysis_id}*_transcript.txt"))
+        if transcript_files:
+            with open(transcript_files[0], 'r', encoding='utf-8') as f:
+                transcript = f.read()
+        
+        if not transcript:
+            # Wait for transcript to be sent via WebSocket
+            data = await websocket.receive_json()
+            transcript = data.get('transcript')
+            
+            if not transcript:
+                await websocket.send_json({
+                    "status": "error",
+                    "message": "No transcript provided"
+                })
+                return
+        
+        # Process the transcript and send updates
+        analyzer = get_analyzer()
+        async for update in analyzer.analyze_transcript(
+            transcript=transcript,
+            session_id=analysis_id,
+            metadata={"source": "websocket"}
+        ):
+            await websocket.send_json(update)
+            
+    except WebSocketDisconnect:
+        logger.info(f"Analysis WebSocket disconnected: {analysis_id}")
+    except Exception as e:
+        logger.error(f"Error in analysis WebSocket: {e}")
+        await websocket.send_json({
+            "status": "error",
+            "message": str(e)
+        })
+    finally:
+        try:
+            await websocket.close()
+        except:
+            pass
+
 @app.get("/download/{session_id}")
 async def download_transcript(session_id: str):
     """Download the transcription result"""
@@ -317,6 +407,174 @@ async def download_transcript(session_id: str):
         media_type="text/plain",
         filename=f"transcript_{session_id}.txt"
     )
+
+@app.post("/api/analyze-transcript")
+async def analyze_transcript_endpoint(
+    session_id: str = None,
+    transcript_text: str = None,
+    file: UploadFile = File(None)
+):
+    """Analyze a meeting transcript using AI"""
+    
+    if not ANALYSIS_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="Meeting analysis is not configured. Please set up API keys."
+        )
+    
+    # Get transcript text from various sources
+    transcript = None
+    
+    if transcript_text:
+        transcript = transcript_text
+    elif file:
+        content = await file.read()
+        transcript = content.decode('utf-8')
+    elif session_id:
+        # Try to find transcript file by session ID
+        transcript_files = list(UPLOAD_DIR.glob(f"{session_id}*_transcript.txt"))
+        if transcript_files:
+            with open(transcript_files[0], 'r', encoding='utf-8') as f:
+                transcript = f.read()
+    
+    if not transcript:
+        raise HTTPException(
+            status_code=400,
+            detail="No transcript provided. Send transcript_text, file, or session_id."
+        )
+    
+    # Generate analysis ID
+    analysis_session_id = session_id or str(uuid.uuid4())
+    
+    # Return immediately with analysis ID, process in background
+    return {
+        "analysis_id": analysis_session_id,
+        "status": "processing",
+        "message": "Analysis started. Use WebSocket for real-time updates."
+    }
+
+@app.get("/api/analysis/{analysis_id}")
+async def get_analysis(analysis_id: str):
+    """Retrieve a completed analysis"""
+    
+    if not ANALYSIS_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="Meeting analysis is not configured."
+        )
+    
+    analyzer = get_analyzer()
+    result = await analyzer.get_analysis(analysis_id)
+    
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis not found or still processing."
+        )
+    
+    return result
+
+@app.get("/api/analysis-status")
+async def get_analysis_status():
+    """Check if analysis feature is enabled"""
+    return {
+        "enabled": ANALYSIS_ENABLED,
+        "message": "Analysis feature is enabled" if ANALYSIS_ENABLED else "Please configure API keys for analysis"
+    }
+
+@app.post("/api/sync-to-notion")
+async def sync_to_notion(
+    analysis_id: str = None,
+    analysis_data: Dict = None
+):
+    """Sync analysis results to Notion"""
+    
+    if not NOTION_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="Notion integration is not configured. Please set up NOTION_API_KEY."
+        )
+    
+    if not ANALYSIS_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="Analysis must be enabled to sync to Notion."
+        )
+    
+    # Get analysis data if not provided
+    if not analysis_data and analysis_id:
+        analyzer = get_analyzer()
+        analysis_data = await analyzer.get_analysis(analysis_id)
+        
+    if not analysis_data:
+        raise HTTPException(
+            status_code=400,
+            detail="No analysis data provided or found."
+        )
+    
+    # Sync to Notion
+    try:
+        notion = get_notion_sync()
+        sync_result = await notion.sync_analysis_to_notion(analysis_data)
+        
+        # Log results
+        logger.info(f"Notion sync completed: {sync_result.success}")
+        if sync_result.meeting_id:
+            logger.info(f"Meeting created: {sync_result.meeting_id}")
+        logger.info(f"Tasks created: {len(sync_result.tasks_created)}")
+        logger.info(f"Tasks failed: {len(sync_result.tasks_failed)}")
+        
+        # Return detailed response
+        return {
+            "success": sync_result.success,
+            "meeting": {
+                "id": sync_result.meeting_id,
+                "url": sync_result.meeting_url
+            },
+            "tasks": {
+                "created": len(sync_result.tasks_created),
+                "failed": len(sync_result.tasks_failed),
+                "details": {
+                    "created": sync_result.tasks_created,
+                    "failed": sync_result.tasks_failed
+                }
+            },
+            "errors": sync_result.errors
+        }
+        
+    except Exception as e:
+        logger.error(f"Notion sync failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to sync to Notion: {str(e)}"
+        )
+
+@app.get("/api/notion-status")
+async def get_notion_status():
+    """Check if Notion integration is enabled and working"""
+    
+    if not NOTION_ENABLED:
+        return {
+            "enabled": False,
+            "message": "Notion integration not configured"
+        }
+    
+    # Test connection
+    try:
+        notion = get_notion_sync()
+        connected = await notion.check_notion_connection()
+        
+        return {
+            "enabled": True,
+            "connected": connected,
+            "message": "Notion integration is ready" if connected else "Cannot connect to Notion API"
+        }
+    except Exception as e:
+        return {
+            "enabled": True,
+            "connected": False,
+            "message": f"Notion integration error: {str(e)}"
+        }
 
 # Startup logic moved to lifespan handler above
 

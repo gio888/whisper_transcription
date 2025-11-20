@@ -42,7 +42,7 @@ def print_test(name: str, passed: bool, error: str = None):
         print(f"      {Colors.YELLOW}→ {error}{Colors.RESET}")
 
 
-def test_imports() -> bool:
+def _run_imports_checks() -> bool:
     """Test that all required modules can be imported."""
     print(f"\n{Colors.BOLD}Testing imports...{Colors.RESET}")
     
@@ -67,7 +67,7 @@ def test_imports() -> bool:
     return all_passed
 
 
-def test_json_serialization() -> bool:
+def _run_json_serialization_checks() -> bool:
     """Test that all data models can be JSON serialized."""
     print(f"\n{Colors.BOLD}Testing JSON serialization (PosixPath bug check)...{Colors.RESET}")
     
@@ -115,7 +115,7 @@ def test_json_serialization() -> bool:
         return False
 
 
-def test_configuration() -> bool:
+def _run_configuration_checks() -> bool:
     """Test that configuration is valid."""
     print(f"\n{Colors.BOLD}Testing configuration...{Colors.RESET}")
 
@@ -163,7 +163,7 @@ def test_configuration() -> bool:
         return False
 
 
-async def test_api_endpoints() -> bool:
+async def _run_api_endpoints_checks() -> bool:
     """Test basic API functionality."""
     print(f"\n{Colors.BOLD}Testing API endpoints...{Colors.RESET}")
     
@@ -208,7 +208,7 @@ async def test_api_endpoints() -> bool:
         return False
 
 
-async def test_websocket_messages() -> bool:
+async def _run_websocket_messages_checks() -> bool:
     """Test WebSocket message serialization."""
     print(f"\n{Colors.BOLD}Testing WebSocket messages...{Colors.RESET}")
     
@@ -264,6 +264,26 @@ async def test_websocket_messages() -> bool:
         return False
 
 
+def test_imports():
+    assert _run_imports_checks()
+
+
+def test_json_serialization():
+    assert _run_json_serialization_checks()
+
+
+def test_configuration():
+    assert _run_configuration_checks()
+
+
+def test_api_endpoints():
+    assert asyncio.run(_run_api_endpoints_checks())
+
+
+def test_websocket_messages():
+    assert asyncio.run(_run_websocket_messages_checks())
+
+
 def main():
     """Run all smoke tests."""
     print(f"\n{Colors.BOLD}{Colors.BLUE}🔥 Running Smoke Tests...{Colors.RESET}")
@@ -272,19 +292,13 @@ def main():
     all_passed = True
     
     # Run synchronous tests
-    all_passed &= test_imports()
-    all_passed &= test_json_serialization()
-    all_passed &= test_configuration()
+    all_passed &= _run_imports_checks()
+    all_passed &= _run_json_serialization_checks()
+    all_passed &= _run_configuration_checks()
     
     # Run async tests
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    try:
-        all_passed &= loop.run_until_complete(test_api_endpoints())
-        all_passed &= loop.run_until_complete(test_websocket_messages())
-    finally:
-        loop.close()
+    all_passed &= asyncio.run(_run_api_endpoints_checks())
+    all_passed &= asyncio.run(_run_websocket_messages_checks())
     
     # Print summary
     print("\n" + "=" * 50)

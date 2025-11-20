@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Accept `.ogg` and `.flac` uploads (Session 2025-11-20).
+
+### Changed
+- Single-upload validation now rejects missing/unsupported extensions with consistent 400 responses; oversized uploads return 400 with clear messaging (Session 2025-11-20).
+
+### Fixed
+- Batch WebSocket messages remain JSON-serializable and test client accepts timeout parameter; pytest runs use mock/fallback transcription to avoid missing-binary errors; smoke tests run without pytest return-value warnings (Session 2025-11-20).
+
 ## [2.4.0] - 2025-01-17
 
 ### Added

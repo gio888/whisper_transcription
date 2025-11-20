@@ -2,7 +2,7 @@ class TranscriptionApp {
     constructor() {
         this.dropZone = document.getElementById('dropZone');
         this.fileInput = document.getElementById('fileInput');
-        
+
         // Single file elements (legacy support)
         this.progressSection = document.getElementById('progressSection');
         this.resultSection = document.getElementById('resultSection');
@@ -19,7 +19,7 @@ class TranscriptionApp {
         this.errorMessage = document.getElementById('errorMessage');
         this.errorHelp = document.getElementById('errorHelp');
         this.timeEstimate = document.getElementById('timeEstimate');
-        
+
         // Batch elements
         this.batchSection = document.getElementById('batchSection');
         this.batchTotal = document.getElementById('batchTotal');
@@ -34,7 +34,11 @@ class TranscriptionApp {
         this.currentFileStatus = document.getElementById('currentFileStatus');
         this.toggleQueue = document.getElementById('toggleQueue');
         this.fileQueue = document.getElementById('fileQueue');
-        
+
+        // Recent batches
+        this.recentBatchesSection = document.getElementById('recentBatchesSection');
+        this.recentBatchesList = document.getElementById('recentBatchesList');
+
         // Processing folder elements
         this.processingFolderSection = document.getElementById('processingFolderSection');
         this.chooseFolderBtn = document.getElementById('chooseFolderBtn');
@@ -42,44 +46,12 @@ class TranscriptionApp {
         this.selectedFolder = document.getElementById('selectedFolder');
         this.selectedFolderPath = document.getElementById('selectedFolderPath');
         this.folderStatus = document.getElementById('folderStatus');
-        
-        // Analysis UI elements
-        this.analyzeBtn = document.getElementById('analyzeBtn');
-        this.analysisProgress = document.getElementById('analysisProgress');
-        this.analysisProgressBar = document.getElementById('analysisProgressBar');
-        this.analysisStatus = document.getElementById('analysisStatus');
-        this.analysisTabBtn = document.getElementById('analysisTabBtn');
-        this.cleanedTabBtn = document.getElementById('cleanedTabBtn');
-        this.analysisSummary = document.getElementById('analysisSummary');
-        this.analysisDecisions = document.getElementById('analysisDecisions');
-        this.analysisDiscussion = document.getElementById('analysisDiscussion');
-        this.analysisActions = document.getElementById('analysisActions');
-        this.cleanedTranscript = document.getElementById('cleanedTranscript');
-        
-        // Export elements
-        this.exportDropdown = document.getElementById('exportDropdown');
-        this.exportBtn = document.getElementById('exportBtn');
-        this.exportMenu = document.getElementById('exportMenu');
-        this.exportItems = document.querySelectorAll('.dropdown-item');
-        
-        // Notion sync elements
-        this.notionSyncBtn = document.getElementById('notionSyncBtn');
-        this.notionSyncModal = document.getElementById('notionSyncModal');
-        this.syncProgress = document.getElementById('syncProgress');
-        this.syncResults = document.getElementById('syncResults');
-        this.syncStatus = document.getElementById('syncStatus');
-        this.syncSummary = document.getElementById('syncSummary');
-        this.closeSyncModal = document.getElementById('closeSyncModal');
-        
-        // Tab elements
-        this.tabButtons = document.querySelectorAll('.tab-button');
-        this.tabPanes = document.querySelectorAll('.tab-pane');
-        
+
         // Debug logging
         console.log('🔍 TranscriptionApp initialized');
         console.log('🔍 processingFolderSection element:', this.processingFolderSection);
         console.log('🔍 chooseFolderBtn element:', this.chooseFolderBtn);
-        
+
         // State management
         this.currentSessionId = null;
         this.currentBatchId = null;
@@ -88,35 +60,38 @@ class TranscriptionApp {
         this.isBatchMode = false;
         this.batchFiles = [];
         this.outputFolderHandle = null;
-        
+
         // Initialize IndexedDB for folder persistence
         this.initIndexedDB();
-        
+
         this.initEventListeners();
-        
+
         // Attempt to restore saved folder
         this.restoreSavedFolder();
+
+        // Check for recent batches
+        this.checkRecentBatches();
     }
-    
+
     async initIndexedDB() {
         // Initialize IndexedDB for storing folder handles
         return new Promise((resolve, reject) => {
             const request = indexedDB.open('WhisperTranscription', 1);
-            
+
             request.onerror = () => {
                 console.error('Failed to open IndexedDB:', request.error);
                 reject(request.error);
             };
-            
+
             request.onsuccess = () => {
                 this.db = request.result;
                 console.log('✅ IndexedDB initialized');
                 resolve();
             };
-            
+
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
-                
+
                 // Create object store for folder handles
                 if (!db.objectStoreNames.contains('folderHandles')) {
                     db.createObjectStore('folderHandles', { keyPath: 'id' });
@@ -125,14 +100,14 @@ class TranscriptionApp {
             };
         });
     }
-    
+
     async saveFolderHandle(handle) {
         if (!this.db || !handle) return;
-        
+
         try {
             const transaction = this.db.transaction(['folderHandles'], 'readwrite');
             const store = transaction.objectStore('folderHandles');
-            
+
             // Store handle with metadata
             await store.put({
                 id: 'outputFolder',
@@ -140,17 +115,17 @@ class TranscriptionApp {
                 name: handle.name,
                 savedAt: new Date().toISOString()
             });
-            
+
             // Also save folder name in localStorage for quick reference
             localStorage.setItem('savedFolderName', handle.name);
             localStorage.setItem('savedFolderDate', new Date().toISOString());
-            
+
             console.log('💾 Folder handle saved:', handle.name);
         } catch (error) {
             console.error('Failed to save folder handle:', error);
         }
     }
-    
+
     async restoreSavedFolder() {
         // Check if we have a saved folder
         const savedFolderName = localStorage.getItem('savedFolderName');
@@ -158,24 +133,24 @@ class TranscriptionApp {
             console.log('📁 No saved folder found');
             return;
         }
-        
+
         console.log('🔄 Attempting to restore saved folder:', savedFolderName);
-        
+
         if (!this.db) {
             await this.initIndexedDB();
         }
-        
+
         try {
             const transaction = this.db.transaction(['folderHandles'], 'readonly');
             const store = transaction.objectStore('folderHandles');
             const request = store.get('outputFolder');
-            
+
             request.onsuccess = async () => {
                 const data = request.result;
                 if (data && data.handle) {
                     // Verify we still have permission
                     const permissionStatus = await this.verifyFolderPermission(data.handle);
-                    
+
                     if (permissionStatus === 'granted') {
                         // Permission still valid, use this folder
                         this.outputFolderHandle = data.handle;
@@ -187,7 +162,7 @@ class TranscriptionApp {
                     }
                 }
             };
-            
+
             request.onerror = () => {
                 console.error('Failed to restore folder handle:', request.error);
             };
@@ -195,7 +170,7 @@ class TranscriptionApp {
             console.error('Error restoring folder:', error);
         }
     }
-    
+
     async verifyFolderPermission(handle) {
         try {
             // Check if we have permission to write to this folder
@@ -206,7 +181,7 @@ class TranscriptionApp {
             return 'denied';
         }
     }
-    
+
     showReauthorizationUI(handle, folderName) {
         // Update UI to show that we have a saved folder but need permission
         if (this.folderStatus) {
@@ -218,7 +193,7 @@ class TranscriptionApp {
                     Re-authorize Access
                 </button>
             `;
-            
+
             // Add click handler for re-authorization
             const reauthorizeBtn = document.getElementById('reauthorizeBtn');
             if (reauthorizeBtn) {
@@ -241,7 +216,7 @@ class TranscriptionApp {
             }
         }
     }
-    
+
     updateFolderUI(folderName, isRestored = false) {
         // Update UI to show selected/restored folder
         if (this.selectedFolderPath) {
@@ -259,15 +234,15 @@ class TranscriptionApp {
             this.clearFolderBtn.style.display = 'flex';
         }
     }
-    
+
     async clearSavedFolder() {
         // Clear the saved folder from storage
         this.outputFolderHandle = null;
-        
+
         // Clear from localStorage
         localStorage.removeItem('savedFolderName');
         localStorage.removeItem('savedFolderDate');
-        
+
         // Clear from IndexedDB
         if (this.db) {
             try {
@@ -279,7 +254,7 @@ class TranscriptionApp {
                 console.error('Failed to clear folder from IndexedDB:', error);
             }
         }
-        
+
         // Update UI
         if (this.selectedFolder) {
             this.selectedFolder.style.display = 'none';
@@ -291,7 +266,71 @@ class TranscriptionApp {
             this.folderStatus.textContent = 'Files will download individually if no folder is selected';
         }
     }
-    
+
+    async checkRecentBatches() {
+        try {
+            const response = await fetch('/api/batches');
+            if (!response.ok) return;
+
+            const data = await response.json();
+            if (data.batches && data.batches.length > 0) {
+                this.showRecentBatches(data.batches);
+            }
+        } catch (error) {
+            console.error('Failed to fetch recent batches:', error);
+        }
+    }
+
+    showRecentBatches(batches) {
+        if (!this.recentBatchesSection || !this.recentBatchesList) return;
+
+        this.recentBatchesSection.style.display = 'block';
+        this.recentBatchesList.innerHTML = '';
+
+        batches.forEach(batch => {
+            const date = new Date(batch.created_at).toLocaleString();
+            const item = document.createElement('div');
+            item.className = 'recent-batch-item';
+            item.innerHTML = `
+                <div class="batch-info">
+                    <span class="batch-date">${date}</span>
+                    <span class="batch-details">${batch.completed_files}/${batch.total_files} files completed</span>
+                </div>
+                <button class="resume-btn">Resume</button>
+            `;
+
+            item.querySelector('.resume-btn').addEventListener('click', () => {
+                this.restoreBatch(batch);
+            });
+
+            this.recentBatchesList.appendChild(item);
+        });
+    }
+
+    restoreBatch(batch) {
+        this.currentBatchId = batch.id;
+        this.batchFiles = batch.files.map(f => ({
+            id: f.id,
+            name: f.original_name,
+            size: f.size,
+            status: f.status,
+            error_message: f.error_message,
+            transcript: null // We don't load full transcript content here to save memory
+        }));
+
+        this.showBatchInterface();
+        this.updateBatchStats(batch.total_files, batch.completed_files, batch.failed_files);
+        this.populateFileQueue();
+
+        // Show queue by default for restored batches
+        if (this.fileQueue) this.fileQueue.style.display = 'block';
+
+        this.connectBatchWebSocket();
+
+        // Hide recent batches
+        this.recentBatchesSection.style.display = 'none';
+    }
+
     initEventListeners() {
         // Keyboard navigation for drop zone
         this.dropZone.addEventListener('keydown', (e) => {
@@ -300,20 +339,20 @@ class TranscriptionApp {
                 this.fileInput.click();
             }
         });
-        
+
         // Drag and drop events
         this.dropZone.addEventListener('click', () => this.fileInput.click());
         this.fileInput.addEventListener('change', (e) => this.handleFilesSelect(e.target.files));
-        
+
         this.dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             this.dropZone.classList.add('dragover');
         });
-        
+
         this.dropZone.addEventListener('dragleave', () => {
             this.dropZone.classList.remove('dragover');
         });
-        
+
         this.dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             this.dropZone.classList.remove('dragover');
@@ -331,61 +370,30 @@ class TranscriptionApp {
                 this.handleFilesSelect(files, fileData);
             }
         });
-        
+
         // Button events
         this.downloadBtn?.addEventListener('click', () => this.downloadTranscript());
         this.newFileBtn?.addEventListener('click', () => this.reset());
-        
-        // Analysis event listeners
-        this.analyzeBtn?.addEventListener('click', () => this.startAnalysis());
-        
-        // Tab navigation
-        this.tabButtons?.forEach(button => {
-            button.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
-        });
-        
-        // Export dropdown
-        this.exportBtn?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.toggleExportMenu();
-        });
-        
-        this.exportItems?.forEach(item => {
-            item.addEventListener('click', (e) => {
-                const format = e.target.dataset.format;
-                this.exportAnalysis(format);
-                this.hideExportMenu();
-            });
-        });
-        
-        // Close export dropdown when clicking outside
-        document.addEventListener('click', () => {
-            this.hideExportMenu();
-        });
-        
-        // Notion sync event listeners
-        this.notionSyncBtn?.addEventListener('click', () => this.syncToNotion());
-        this.closeSyncModal?.addEventListener('click', () => this.closeNotionModal());
         this.retryBtn?.addEventListener('click', () => this.reset());
-        
+
         // Batch UI events
         this.toggleQueue?.addEventListener('click', () => this.toggleQueueVisibility());
-        
+
         // Processing folder events
         this.chooseFolderBtn?.addEventListener('click', () => this.chooseFolderHandler());
         this.clearFolderBtn?.addEventListener('click', () => this.clearSavedFolder());
     }
-    
+
     handleFilesSelect(files, fileData = null) {
         if (!files || files.length === 0) return;
-        
+
         const fileArray = Array.from(files);
-        
+
         // Determine if this is batch mode
         this.isBatchMode = fileArray.length > 1;
-        
+
         console.log(`🔍 handleFilesSelect: ${fileArray.length} files, isBatchMode: ${this.isBatchMode}`);
-        
+
         if (this.isBatchMode) {
             console.log('🔍 Taking batch upload path');
             this.handleBatchUpload(fileArray, fileData);
@@ -395,12 +403,12 @@ class TranscriptionApp {
             this.handleSingleFileUpload(fileArray[0]);
         }
     }
-    
+
     async handleSingleFileUpload(file) {
         // Validate file
         const validTypes = ['.m4a', '.mp3', '.wav', '.aac', '.mp4'];
         const fileExt = '.' + file.name.split('.').pop().toLowerCase();
-        
+
         if (!validTypes.includes(fileExt)) {
             this.showError(
                 `Invalid file type: ${fileExt}`,
@@ -408,7 +416,7 @@ class TranscriptionApp {
             );
             return;
         }
-        
+
         if (file.size > 500 * 1024 * 1024) {
             const actualSize = this.formatFileSize(file.size);
             this.showError(
@@ -417,26 +425,26 @@ class TranscriptionApp {
             );
             return;
         }
-        
+
         // Update UI for single file
         this.fileName.textContent = file.name;
         this.fileSize.textContent = this.formatFileSize(file.size);
-        
+
         // Upload single file
         await this.uploadSingleFile(file);
     }
-    
+
     async handleBatchUpload(files, fileData = null) {
         console.log('🔍 handleBatchUpload called with', files.length, 'files');
-        
+
         // Validate all files
         const validFiles = [];
         const validTypes = ['.m4a', '.mp3', '.wav', '.aac', '.mp4'];
-        
+
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const fileExt = '.' + file.name.split('.').pop().toLowerCase();
-            
+
             if (validTypes.includes(fileExt) && file.size <= 500 * 1024 * 1024) {
                 validFiles.push({
                     file: file,
@@ -444,7 +452,7 @@ class TranscriptionApp {
                 });
             }
         }
-        
+
         if (validFiles.length === 0) {
             this.showError(
                 'No valid files',
@@ -452,81 +460,86 @@ class TranscriptionApp {
             );
             return;
         }
-        
+
         // Show batch interface
         this.showBatchInterface();
-        
+
         // Upload batch
         await this.uploadBatchFiles(validFiles);
     }
-    
+
     async uploadSingleFile(file) {
         this.showProgress();
         this.updateStatus('Uploading file...');
         this.uploadStartTime = Date.now();
-        
+
         const formData = new FormData();
         formData.append('file', file);
-        
+
         try {
             const response = await fetch('/upload', {
                 method: 'POST',
                 body: formData
             });
-            
+
             if (!response.ok) {
                 throw new Error('Upload failed');
             }
-            
+
             const data = await response.json();
             this.currentSessionId = data.session_id;
-            
+
             // Connect WebSocket for single file progress
             this.connectSingleFileWebSocket();
-            
+
         } catch (error) {
             this.showError('Upload failed', error.message);
         }
     }
-    
+
     async uploadBatchFiles(validFiles) {
         this.updateBatchStatus('Uploading files...');
         this.uploadStartTime = Date.now();
-        
+
         const formData = new FormData();
         validFiles.forEach(fileData => {
             formData.append('files', fileData.file);
         });
-        
+
         try {
             const response = await fetch('/batch-upload', {
                 method: 'POST',
                 body: formData
             });
-            
+
             if (!response.ok) {
                 throw new Error('Batch upload failed');
             }
-            
+
             const data = await response.json();
             this.currentBatchId = data.batch_id;
             this.batchFiles = data.files.map((file, index) => ({
                 ...file,
                 originalPath: validFiles[index]?.originalPath
             }));
-            
+
+            // Update batch UI
+            this.updateBatchStats(data.files_count, 0, 0);
             // Update batch UI
             this.updateBatchStats(data.files_count, 0, 0);
             this.populateFileQueue();
-            
+
+            // Show queue by default
+            if (this.fileQueue) this.fileQueue.style.display = 'block';
+
             // Show folder selection during processing
             console.log('🔍 About to show processingFolderSection');
             console.log('🔍 processingFolderSection element:', this.processingFolderSection);
-            
+
             if (this.processingFolderSection) {
                 this.processingFolderSection.style.display = 'block';
                 console.log('✅ Set processingFolderSection display to block');
-                
+
                 // If we already have a saved folder, show that it's being used
                 if (this.outputFolderHandle) {
                     this.updateFolderUI(this.outputFolderHandle.name, false);
@@ -535,62 +548,62 @@ class TranscriptionApp {
             } else {
                 console.error('❌ processingFolderSection is null!');
             }
-            
+
             // Auto-start processing
             this.updateBatchStatus('Processing files...');
             this.connectBatchWebSocket();
-            
+
         } catch (error) {
             this.showError('Batch upload failed', error.message);
         }
     }
-    
+
     connectSingleFileWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws/${this.currentSessionId}`;
         this.ws = new WebSocket(wsUrl);
-        
+
         this.ws.onopen = () => {
             this.updateStatus('Connected. Starting transcription...');
         };
-        
+
         this.ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             this.handleSingleFileProgress(data);
         };
-        
+
         this.ws.onerror = () => {
             this.showError('Connection lost', 'Could not connect to the server.');
         };
-        
+
         this.ws.onclose = () => {
             console.log('WebSocket connection closed');
         };
     }
-    
+
     connectBatchWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws/batch/${this.currentBatchId}`;
         this.ws = new WebSocket(wsUrl);
-        
+
         this.ws.onopen = () => {
             this.updateBatchStatus('Connected. Starting batch transcription...');
         };
-        
+
         this.ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             this.handleBatchProgress(data);
         };
-        
+
         this.ws.onerror = () => {
             this.showError('Connection lost', 'Could not connect to the server.');
         };
-        
+
         this.ws.onclose = () => {
             console.log('Batch WebSocket connection closed');
         };
     }
-    
+
     handleSingleFileProgress(data) {
         // Handle single file progress (legacy behavior)
         switch (data.status) {
@@ -598,62 +611,62 @@ class TranscriptionApp {
                 this.updateStatus('Converting audio format...');
                 this.updateProgress(data.progress * 0.1);
                 break;
-                
+
             case 'transcribing':
                 const progress = 10 + data.progress * 0.9;
                 this.updateProgress(progress);
                 this.updateStatus(data.message || 'Transcribing audio...');
                 break;
-                
+
             case 'completed':
                 this.updateProgress(100);
                 this.updateStatus('Transcription complete!');
                 this.showResult(data.transcript);
                 break;
-                
+
             case 'error':
                 this.showError('Transcription failed', data.error);
                 break;
         }
     }
-    
+
     handleBatchProgress(data) {
         switch (data.type) {
             case 'batch_status':
                 this.updateBatchStats(data.total_files, data.completed_files, data.failed_files);
                 break;
-                
+
             case 'file_start':
-                this.updateCurrentFile(data.file_name, data.file_index);
+                // We don't use the single "current file" hero section for parallel processing
+                // Instead we rely on the file queue status updates
                 this.updateFileStatus(data.file_id, 'processing', 0);
                 break;
-                
+
             case 'file_progress':
                 if (data.file_id) {
                     this.updateFileStatus(data.file_id, data.status, data.progress || 0);
-                    this.updateCurrentFileProgress(data.progress || 0, data.message);
                 }
                 break;
-                
+
             case 'file_complete':
                 this.updateFileStatus(data.file_id, data.status, 100, data.error_message);
-                
+
                 // Store transcript content and save immediately if completed
                 const batchFile = this.batchFiles.find(f => f.id === data.file_id);
                 if (batchFile && data.status === 'completed' && data.transcript) {
                     batchFile.transcript = data.transcript;
                     batchFile.status = data.status;
-                    
+
                     // Save file immediately - either to folder or download
                     this.saveCompletedTranscript(batchFile.name, data.transcript);
                 }
                 break;
-                
+
             case 'batch_complete':
                 this.updateBatchStats(data.total_files, data.completed_files, data.failed_files);
                 this.updateBatchStatus(`Batch complete! ${data.completed_files} of ${data.total_files} files processed successfully.`);
                 this.currentFileSection.style.display = 'none';
-                
+
                 // Hide folder selection since processing is done
                 if (this.processingFolderSection) {
                     this.processingFolderSection.style.display = 'none';
@@ -661,7 +674,7 @@ class TranscriptionApp {
                 break;
         }
     }
-    
+
     // UI Update Methods
     showProgress() {
         this.dropZone.style.display = 'none';
@@ -670,7 +683,7 @@ class TranscriptionApp {
         this.errorSection.style.display = 'none';
         this.batchSection.style.display = 'none';
     }
-    
+
     showBatchInterface() {
         this.dropZone.style.display = 'none';
         this.progressSection.style.display = 'none';
@@ -678,35 +691,19 @@ class TranscriptionApp {
         this.errorSection.style.display = 'none';
         this.batchSection.style.display = 'block';
     }
-    
-    async showResult(transcript) {
+
+    showResult(transcript) {
         this.progressSection.style.display = 'none';
         this.batchSection.style.display = 'none';
         this.resultSection.style.display = 'block';
-        
-        // Store transcript for analysis
-        this.currentTranscript = transcript;
-        
-        const preview = transcript.length > 500 
+
+        const preview = transcript.length > 500
             ? transcript.substring(0, 500) + '...\n\n[Full transcript available in download]'
             : transcript;
-        
+
         this.transcriptPreview.textContent = preview;
-        
-        // Check if analysis is available and show button
-        console.log('🔍 Checking if analysis is available...');
-        const analysisAvailable = await this.checkAnalysisAvailable();
-        console.log('🔍 Analysis available:', analysisAvailable);
-        console.log('🔍 Analyze button element:', this.analyzeBtn);
-        
-        if (analysisAvailable && this.analyzeBtn) {
-            this.analyzeBtn.style.display = 'inline-block';
-            console.log('✅ Analyze button shown');
-        } else {
-            console.log('❌ Analyze button not shown - available:', analysisAvailable, 'button exists:', !!this.analyzeBtn);
-        }
     }
-    
+
     showError(title, helpText = '') {
         this.dropZone.style.display = 'none';
         this.progressSection.style.display = 'none';
@@ -714,7 +711,7 @@ class TranscriptionApp {
         this.batchSection.style.display = 'none';
         this.errorSection.style.display = 'block';
         this.errorMessage.textContent = title;
-        
+
         if (this.errorHelp && helpText) {
             this.errorHelp.textContent = helpText;
             this.errorHelp.style.display = 'block';
@@ -722,13 +719,13 @@ class TranscriptionApp {
             this.errorHelp.style.display = 'none';
         }
     }
-    
+
     updateStatus(message) {
         if (this.statusMessage) {
             this.statusMessage.textContent = message;
         }
     }
-    
+
     updateProgress(percent) {
         if (this.progressBar) {
             this.progressBar.style.width = `${percent}%`;
@@ -737,24 +734,24 @@ class TranscriptionApp {
             this.progressContainer.setAttribute('aria-valuenow', Math.round(percent));
         }
     }
-    
+
     updateBatchStatus(message) {
         if (this.batchStatus) {
             this.batchStatus.textContent = message;
         }
     }
-    
+
     updateBatchStats(total, completed, failed) {
         if (this.batchTotal) this.batchTotal.textContent = total;
         if (this.batchCompleted) this.batchCompleted.textContent = completed;
         if (this.batchFailed) this.batchFailed.textContent = failed;
-        
+
         const progress = total > 0 ? ((completed + failed) / total) * 100 : 0;
         if (this.batchProgressBar) {
             this.batchProgressBar.style.width = `${progress}%`;
         }
     }
-    
+
     updateCurrentFile(fileName, fileIndex) {
         if (this.currentFileName) {
             this.currentFileName.textContent = fileName;
@@ -763,7 +760,7 @@ class TranscriptionApp {
             this.currentFileSection.style.display = 'block';
         }
     }
-    
+
     updateCurrentFileProgress(progress, message) {
         if (this.currentFileProgress) {
             this.currentFileProgress.textContent = `${progress}%`;
@@ -775,21 +772,21 @@ class TranscriptionApp {
             this.currentFileStatus.textContent = message;
         }
     }
-    
+
     updateFileStatus(fileId, status, progress, errorMessage = null) {
         const fileItem = document.querySelector(`[data-file-id="${fileId}"]`);
         if (!fileItem) return;
-        
+
         // Update status class
         fileItem.className = `file-item ${status}`;
-        
+
         // Update status icon
         const statusIcon = fileItem.querySelector('.file-status-icon');
         const progressText = fileItem.querySelector('.file-progress-text');
-        
+
         if (statusIcon) {
             statusIcon.className = `file-status-icon ${status}`;
-            
+
             // Update icon content based on status
             switch (status) {
                 case 'queued':
@@ -806,7 +803,7 @@ class TranscriptionApp {
                     break;
             }
         }
-        
+
         if (progressText) {
             if (status === 'completed') {
                 progressText.textContent = 'Completed';
@@ -816,7 +813,7 @@ class TranscriptionApp {
                 progressText.textContent = `${progress}%`;
             }
         }
-        
+
         // Add error message if present
         let errorDiv = fileItem.querySelector('.file-error');
         if (errorMessage) {
@@ -830,17 +827,17 @@ class TranscriptionApp {
             errorDiv.remove();
         }
     }
-    
+
     populateFileQueue() {
         if (!this.fileQueue || !this.batchFiles) return;
-        
+
         this.fileQueue.innerHTML = '';
-        
+
         this.batchFiles.forEach(file => {
             const fileItem = document.createElement('div');
             fileItem.className = 'file-item queued';
             fileItem.setAttribute('data-file-id', file.id);
-            
+
             fileItem.innerHTML = `
                 <div class="file-status-icon queued">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -859,38 +856,38 @@ class TranscriptionApp {
                     <div class="file-progress-text">0%</div>
                 </div>
             `;
-            
+
             this.fileQueue.appendChild(fileItem);
         });
     }
-    
+
     toggleQueueVisibility() {
         if (!this.fileQueue || !this.toggleQueue) return;
-        
+
         const isVisible = this.fileQueue.style.display !== 'none';
         this.fileQueue.style.display = isVisible ? 'none' : 'block';
-        
+
         const toggleText = this.toggleQueue.querySelector('.queue-toggle-text');
         const toggleIcon = this.toggleQueue.querySelector('.queue-toggle-icon');
-        
+
         if (toggleText) {
             toggleText.textContent = isVisible ? 'Show Details' : 'Hide Details';
         }
-        
+
         if (toggleIcon) {
             this.toggleQueue.classList.toggle('expanded', !isVisible);
         }
     }
-    
+
     formatFileSize(bytes) {
         if (bytes < 1024) return bytes + ' B';
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
-    
+
     async downloadTranscript() {
         if (!this.currentSessionId) return;
-        
+
         const url = `/download/${this.currentSessionId}`;
         const a = document.createElement('a');
         a.href = url;
@@ -899,7 +896,7 @@ class TranscriptionApp {
         a.click();
         document.body.removeChild(a);
     }
-    
+
     // Processing Folder Selection Methods
     async chooseFolderHandler() {
         try {
@@ -908,18 +905,18 @@ class TranscriptionApp {
                 this.folderStatus.textContent = 'Folder selection not supported. Files will download individually.';
                 return;
             }
-            
+
             // Request directory access
             this.outputFolderHandle = await window.showDirectoryPicker();
-            
+
             // Save the folder handle for future sessions
             await this.saveFolderHandle(this.outputFolderHandle);
-            
+
             // Update UI to show selected folder
             this.updateFolderUI(this.outputFolderHandle.name, false);
-            
+
             console.log('📁 New folder selected and saved:', this.outputFolderHandle.name);
-            
+
         } catch (error) {
             if (error.name !== 'AbortError') {
                 console.error('Error choosing folder:', error);
@@ -927,60 +924,60 @@ class TranscriptionApp {
             }
         }
     }
-    
+
     async saveTranscriptToFolder(fileName, content) {
         if (!this.outputFolderHandle) {
             return false; // Fall back to download
         }
-        
+
         try {
             // Create transcript file name
             const transcriptName = fileName.replace(/\.[^/.]+$/, '') + '.txt';
-            
+
             // Get file handle
             const fileHandle = await this.outputFolderHandle.getFileHandle(transcriptName, {
                 create: true
             });
-            
+
             // Write content
             const writable = await fileHandle.createWritable();
             await writable.write(content);
             await writable.close();
-            
+
             return true;
         } catch (error) {
             console.error('Error saving to folder:', error);
             return false; // Fall back to download
         }
     }
-    
+
     async saveCompletedTranscript(originalFileName, transcriptContent) {
         const transcriptName = originalFileName.replace(/\.[^/.]+$/, '') + '.txt';
-        
+
         // Try to save to selected folder first
         if (this.outputFolderHandle) {
             try {
                 const fileHandle = await this.outputFolderHandle.getFileHandle(transcriptName, {
                     create: true
                 });
-                
+
                 const writable = await fileHandle.createWritable();
                 await writable.write(transcriptContent);
                 await writable.close();
-                
+
                 console.log(`✅ Saved ${transcriptName} to folder`);
                 return;
-                
+
             } catch (error) {
                 console.error(`Failed to save ${transcriptName} to folder:`, error);
                 // Fall through to download
             }
         }
-        
+
         // Fallback to individual download
         this.downloadTranscriptFile(transcriptName, transcriptContent);
     }
-    
+
     downloadTranscriptFile(fileName, content) {
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -991,49 +988,31 @@ class TranscriptionApp {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
+
         console.log(`📥 Downloaded ${fileName}`);
     }
-    
+
     reset() {
         this.dropZone.style.display = 'block';
         this.progressSection.style.display = 'none';
         this.resultSection.style.display = 'none';
         this.errorSection.style.display = 'none';
         this.batchSection.style.display = 'none';
-        
-        // Reset analysis UI
-        if (this.analysisProgress) this.analysisProgress.style.display = 'none';
-        if (this.analyzeBtn) {
-            this.analyzeBtn.style.display = 'none';
-            this.analyzeBtn.disabled = false;
-        }
-        if (this.analysisTabBtn) this.analysisTabBtn.style.display = 'none';
-        if (this.cleanedTabBtn) this.cleanedTabBtn.style.display = 'none';
-        if (this.exportDropdown) this.exportDropdown.style.display = 'none';
-        if (this.notionSyncBtn) this.notionSyncBtn.style.display = 'none';
-        
-        // Reset to transcript tab
-        this.switchTab('transcript');
-        
-        // Clear analysis data
-        this.currentTranscript = null;
-        this.currentAnalysis = null;
-        
+
         this.fileInput.value = '';
         if (this.progressBar) this.progressBar.style.width = '0%';
         if (this.batchProgressBar) this.batchProgressBar.style.width = '0%';
-        
+
         this.currentSessionId = null;
         this.currentBatchId = null;
         this.uploadStartTime = null;
         this.isBatchMode = false;
         this.batchFiles = [];
         // Don't reset outputFolderHandle - keep it for next batch
-        
+
         // Reset processing folder UI but keep saved folder if exists
         if (this.processingFolderSection) this.processingFolderSection.style.display = 'none';
-        
+
         // If we have a saved folder, show it's still selected
         if (this.outputFolderHandle) {
             if (this.selectedFolder) this.selectedFolder.style.display = 'flex';
@@ -1046,448 +1025,14 @@ class TranscriptionApp {
                 this.folderStatus.textContent = 'Files will download individually if no folder is selected';
             }
         }
-        
+
         if (this.timeEstimate) this.timeEstimate.textContent = '';
         if (this.currentFileSection) this.currentFileSection.style.display = 'none';
-        
+
         if (this.ws) {
             this.ws.close();
             this.ws = null;
         }
-    }
-    
-    // ==================== Analysis Methods ====================
-    
-    async checkAnalysisAvailable() {
-        try {
-            const response = await fetch('/api/analysis-status');
-            const data = await response.json();
-            return data.enabled;
-        } catch (error) {
-            console.error('Failed to check analysis status:', error);
-            return false;
-        }
-    }
-    
-    async startAnalysis() {
-        if (!this.currentTranscript) {
-            this.showError('No transcript available', 'Please transcribe a file first.');
-            return;
-        }
-        
-        // Show progress UI
-        this.analysisProgress.style.display = 'block';
-        this.analyzeBtn.disabled = true;
-        this.analysisProgressBar.style.width = '0%';
-        this.analysisStatus.textContent = 'Starting analysis...';
-        
-        const analysisId = this.currentSessionId || `analysis_${Date.now()}`;
-        
-        // Connect to WebSocket for real-time updates
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/analysis/${analysisId}`;
-        
-        const ws = new WebSocket(wsUrl);
-        
-        ws.onopen = () => {
-            console.log('Analysis WebSocket connected');
-            // Send transcript to analyze
-            ws.send(JSON.stringify({
-                transcript: this.currentTranscript
-            }));
-        };
-        
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            this.handleAnalysisUpdate(data);
-        };
-        
-        ws.onerror = (error) => {
-            console.error('Analysis WebSocket error:', error);
-            this.showError('Analysis Error', 'Failed to connect to analysis service.');
-            this.analysisProgress.style.display = 'none';
-            this.analyzeBtn.disabled = false;
-        };
-        
-        ws.onclose = () => {
-            console.log('Analysis WebSocket closed');
-        };
-    }
-    
-    handleAnalysisUpdate(data) {
-        // Update progress bar
-        if (data.progress) {
-            this.analysisProgressBar.style.width = `${data.progress}%`;
-        }
-        
-        // Update status message
-        if (data.message) {
-            this.analysisStatus.textContent = data.message;
-        }
-        
-        // Handle completion
-        if (data.status === 'completed' && data.result) {
-            this.displayAnalysisResults(data.result);
-            this.analysisProgress.style.display = 'none';
-            this.analyzeBtn.style.display = 'none';
-            
-            // Show analysis tabs and export dropdown
-            this.analysisTabBtn.style.display = 'inline-block';
-            this.cleanedTabBtn.style.display = 'inline-block';
-            this.exportDropdown.style.display = 'inline-block';
-            
-            // Check if Notion is available and show sync button
-            this.checkNotionAvailable();
-        }
-        
-        // Handle errors
-        if (data.status === 'error') {
-            this.showError('Analysis Failed', data.message || 'An error occurred during analysis.');
-            this.analysisProgress.style.display = 'none';
-            this.analyzeBtn.disabled = false;
-        }
-    }
-    
-    displayAnalysisResults(result) {
-        // Display meeting summary
-        if (result.summary) {
-            this.analysisSummary.textContent = result.summary;
-        }
-        
-        // Display key decisions
-        if (result.key_decisions) {
-            this.analysisDecisions.innerHTML = '';
-            result.key_decisions.forEach(decision => {
-                const li = document.createElement('li');
-                li.textContent = decision;
-                this.analysisDecisions.appendChild(li);
-            });
-        }
-        
-        // Display discussion points
-        if (result.discussion_points) {
-            this.analysisDiscussion.innerHTML = '';
-            result.discussion_points.forEach(point => {
-                const li = document.createElement('li');
-                li.textContent = point;
-                this.analysisDiscussion.appendChild(li);
-            });
-        }
-        
-        // Display action items
-        if (result.action_items) {
-            this.analysisActions.innerHTML = '';
-            result.action_items.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'action-item';
-                
-                const task = document.createElement('div');
-                task.className = 'action-item-task';
-                task.textContent = item.task;
-                div.appendChild(task);
-                
-                const meta = document.createElement('div');
-                meta.className = 'action-item-meta';
-                
-                if (item.owner) {
-                    const owner = document.createElement('span');
-                    owner.className = 'action-item-owner';
-                    owner.textContent = `Owner: ${item.owner}`;
-                    meta.appendChild(owner);
-                }
-                
-                if (item.deadline) {
-                    const deadline = document.createElement('span');
-                    deadline.className = 'action-item-deadline';
-                    deadline.textContent = `Due: ${item.deadline}`;
-                    meta.appendChild(deadline);
-                }
-                
-                if (meta.children.length > 0) {
-                    div.appendChild(meta);
-                }
-                
-                this.analysisActions.appendChild(div);
-            });
-        }
-        
-        // Display cleaned transcript
-        if (result.cleaned_transcript) {
-            this.cleanedTranscript.textContent = result.cleaned_transcript;
-        }
-        
-        // Store analysis result for export
-        this.currentAnalysis = result;
-    }
-    
-    switchTab(tabName) {
-        // Update tab buttons
-        this.tabButtons.forEach(button => {
-            if (button.dataset.tab === tabName) {
-                button.classList.add('active');
-                button.setAttribute('aria-selected', 'true');
-            } else {
-                button.classList.remove('active');
-                button.setAttribute('aria-selected', 'false');
-            }
-        });
-        
-        // Update tab panes
-        this.tabPanes.forEach(pane => {
-            if (pane.id === `${tabName}Tab`) {
-                pane.classList.add('active');
-                pane.style.display = 'block';
-            } else {
-                pane.classList.remove('active');
-                pane.style.display = 'none';
-            }
-        });
-    }
-    
-    async exportAnalysis(format = 'json') {
-        if (!this.currentAnalysis) {
-            this.showError('No Analysis', 'Please analyze the transcript first.');
-            return;
-        }
-        
-        let content, filename, mimeType;
-        
-        switch (format) {
-            case 'json':
-                content = JSON.stringify(this.currentAnalysis, null, 2);
-                filename = `analysis_${this.currentSessionId}.json`;
-                mimeType = 'application/json';
-                break;
-            
-            case 'markdown':
-                content = this.convertAnalysisToMarkdown(this.currentAnalysis);
-                filename = `analysis_${this.currentSessionId}.md`;
-                mimeType = 'text/markdown';
-                break;
-            
-            case 'text':
-                content = this.convertAnalysisToText(this.currentAnalysis);
-                filename = `analysis_${this.currentSessionId}.txt`;
-                mimeType = 'text/plain';
-                break;
-            
-            default:
-                return;
-        }
-        
-        const blob = new Blob([content], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-    
-    convertAnalysisToMarkdown(analysis) {
-        let markdown = '# Meeting Analysis\n\n';
-        
-        markdown += '## Summary\n\n' + analysis.summary + '\n\n';
-        
-        markdown += '## Key Decisions\n\n';
-        analysis.key_decisions.forEach(decision => {
-            markdown += `- ${decision}\n`;
-        });
-        markdown += '\n';
-        
-        markdown += '## Discussion Points\n\n';
-        analysis.discussion_points.forEach(point => {
-            markdown += `- ${point}\n`;
-        });
-        markdown += '\n';
-        
-        markdown += '## Action Items\n\n';
-        analysis.action_items.forEach(item => {
-            markdown += `### ${item.task}\n`;
-            if (item.owner) markdown += `- **Owner:** ${item.owner}\n`;
-            if (item.deadline) markdown += `- **Deadline:** ${item.deadline}\n`;
-            markdown += '\n';
-        });
-        
-        markdown += '## Cleaned Transcript\n\n';
-        markdown += analysis.cleaned_transcript;
-        
-        return markdown;
-    }
-    
-    convertAnalysisToText(analysis) {
-        let text = 'MEETING ANALYSIS\n' + '='.repeat(50) + '\n\n';
-        
-        text += 'SUMMARY\n' + '-'.repeat(30) + '\n' + analysis.summary + '\n\n';
-        
-        text += 'KEY DECISIONS\n' + '-'.repeat(30) + '\n';
-        analysis.key_decisions.forEach(decision => {
-            text += `• ${decision}\n`;
-        });
-        text += '\n';
-        
-        text += 'DISCUSSION POINTS\n' + '-'.repeat(30) + '\n';
-        analysis.discussion_points.forEach(point => {
-            text += `• ${point}\n`;
-        });
-        text += '\n';
-        
-        text += 'ACTION ITEMS\n' + '-'.repeat(30) + '\n';
-        analysis.action_items.forEach(item => {
-            text += `Task: ${item.task}\n`;
-            if (item.owner) text += `Owner: ${item.owner}\n`;
-            if (item.deadline) text += `Deadline: ${item.deadline}\n`;
-            text += '\n';
-        });
-        
-        text += 'CLEANED TRANSCRIPT\n' + '-'.repeat(30) + '\n';
-        text += analysis.cleaned_transcript;
-        
-        return text;
-    }
-    
-    toggleExportMenu() {
-        if (this.exportMenu.style.display === 'none' || this.exportMenu.style.display === '') {
-            this.exportMenu.style.display = 'block';
-        } else {
-            this.exportMenu.style.display = 'none';
-        }
-    }
-    
-    hideExportMenu() {
-        if (this.exportMenu) {
-            this.exportMenu.style.display = 'none';
-        }
-    }
-    
-    // ==================== Notion Integration ====================
-    
-    async checkNotionAvailable() {
-        try {
-            console.log('🔍 Checking Notion availability...');
-            const response = await fetch('/api/notion-status');
-            const data = await response.json();
-            console.log('🔍 Notion status:', data);
-            
-            if (data.enabled && data.connected && this.notionSyncBtn) {
-                this.notionSyncBtn.style.display = 'inline-block';
-                console.log('✅ Notion integration available - button shown');
-            } else {
-                console.log('❌ Notion not available - enabled:', data.enabled, 'connected:', data.connected, 'button exists:', !!this.notionSyncBtn);
-            }
-        } catch (error) {
-            console.error('Failed to check Notion status:', error);
-        }
-    }
-    
-    async syncToNotion() {
-        if (!this.currentAnalysis) {
-            this.showError('No Analysis', 'Please analyze the transcript first.');
-            return;
-        }
-        
-        // Show modal
-        this.notionSyncModal.style.display = 'flex';
-        this.syncProgress.style.display = 'block';
-        this.syncResults.style.display = 'none';
-        this.syncStatus.textContent = 'Connecting to Notion...';
-        
-        try {
-            // Prepare the request
-            const requestBody = {
-                analysis_data: this.currentAnalysis
-            };
-            
-            // Update status
-            this.syncStatus.textContent = 'Creating meeting in Notion...';
-            
-            // Send sync request
-            const response = await fetch('/api/sync-to-notion', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody)
-            });
-            
-            const result = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(result.detail || 'Sync failed');
-            }
-            
-            // Log results to console
-            console.log('Notion sync result:', result);
-            
-            // Display results
-            this.displaySyncResults(result);
-            
-        } catch (error) {
-            console.error('Notion sync error:', error);
-            this.displaySyncError(error.message);
-        }
-    }
-    
-    displaySyncResults(result) {
-        this.syncProgress.style.display = 'none';
-        this.syncResults.style.display = 'block';
-        
-        let summaryHTML = '';
-        
-        if (result.success) {
-            summaryHTML += '<p class="sync-success">✅ Sync completed successfully!</p>';
-        }
-        
-        if (result.meeting && result.meeting.id) {
-            summaryHTML += `<p class="sync-success">📄 Meeting created in Interactions Registry</p>`;
-            if (result.meeting.url) {
-                summaryHTML += `<p><a href="${result.meeting.url}" target="_blank">Open in Notion →</a></p>`;
-            }
-        }
-        
-        if (result.tasks) {
-            if (result.tasks.created > 0) {
-                summaryHTML += `<p class="sync-success">✅ ${result.tasks.created} task(s) created</p>`;
-            }
-            
-            if (result.tasks.failed > 0) {
-                summaryHTML += `<p class="sync-warning">⚠️ ${result.tasks.failed} task(s) failed to create</p>`;
-                
-                // Show failed task details
-                if (result.tasks.details && result.tasks.details.failed) {
-                    summaryHTML += '<details><summary>Failed tasks</summary><ul>';
-                    result.tasks.details.failed.forEach(task => {
-                        summaryHTML += `<li>${task.task}: ${task.error}</li>`;
-                    });
-                    summaryHTML += '</ul></details>';
-                }
-            }
-        }
-        
-        if (result.errors && result.errors.length > 0) {
-            summaryHTML += '<p class="sync-error">Errors:</p><ul>';
-            result.errors.forEach(error => {
-                summaryHTML += `<li class="sync-error">${error}</li>`;
-            });
-            summaryHTML += '</ul>';
-        }
-        
-        this.syncSummary.innerHTML = summaryHTML;
-    }
-    
-    displaySyncError(message) {
-        this.syncProgress.style.display = 'none';
-        this.syncResults.style.display = 'block';
-        
-        this.syncSummary.innerHTML = `
-            <p class="sync-error">❌ Sync failed</p>
-            <p class="sync-error">${message}</p>
-            <p>Please check your Notion integration settings and try again.</p>
-        `;
-    }
-    
-    closeNotionModal() {
-        this.notionSyncModal.style.display = 'none';
     }
 }
 

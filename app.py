@@ -19,8 +19,9 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import aiofiles
 
-from config import UPLOAD_DIR, STATIC_DIR, MAX_FILE_SIZE, ALLOWED_EXTENSIONS
+from config import UPLOAD_DIR, STATIC_DIR, MAX_FILE_SIZE, ALLOWED_EXTENSIONS, MAX_CONCURRENT_JOBS
 from transcriber import transcriber
+import database
 
 logging.basicConfig(
     level=logging.DEBUG,  # Changed to DEBUG for more detailed output
@@ -62,6 +63,7 @@ except ImportError as e:
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting Whisper Transcription Service")
+    await database.init_db()
     
     # Clean old files from uploads directory
     for file in UPLOAD_DIR.glob("*"):
@@ -242,6 +244,11 @@ async def upload_batch_files(files: List[UploadFile] = File(...)):
     
     active_batches[batch_id] = batch_job
     
+    # Persist to DB
+    await database.create_batch(batch_id, len(batch_files))
+    for bf in batch_files:
+        await database.create_file(batch_id, bf.to_dict())
+    
     return {
         "batch_id": batch_id,
         "files_count": len(batch_files),
@@ -253,6 +260,12 @@ async def upload_batch_files(files: List[UploadFile] = File(...)):
         } for bf in batch_files],
         "message": "Files uploaded successfully. Connect to WebSocket for batch progress updates."
     }
+
+@app.get("/api/batches")
+async def get_recent_batches():
+    """Get recent batches for session restoration"""
+    batches = await database.get_recent_batches()
+    return {"batches": batches}
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -306,11 +319,37 @@ async def batch_websocket_endpoint(websocket: WebSocket, batch_id: str):
     try:
         # Check if batch exists
         if batch_id not in active_batches:
-            await websocket.send_json({
-                "status": "error",
-                "error": "Batch not found. Please upload files again."
-            })
-            return
+            # Try to load from DB
+            batch_data = await database.get_batch(batch_id)
+            if batch_data:
+                # Reconstruct BatchJob
+                files = []
+                for f_data in batch_data['files']:
+                    files.append(BatchFile(
+                        id=f_data['id'],
+                        original_name=f_data['original_name'],
+                        original_path=f_data['original_path'],
+                        file_path=Path(f_data['file_path']),
+                        size=f_data['size'],
+                        status=FileStatus(f_data['status']),
+                        error_message=f_data['error_message'],
+                        transcript_path=f_data['transcript_path'],
+                        progress=f_data['progress']
+                    ))
+                
+                active_batches[batch_id] = BatchJob(
+                    batch_id=batch_id,
+                    files=files,
+                    total_files=batch_data['total_files'],
+                    completed_files=batch_data['completed_files'],
+                    failed_files=batch_data['failed_files']
+                )
+            else:
+                await websocket.send_json({
+                    "status": "error",
+                    "error": "Batch not found. Please upload files again."
+                })
+                return
         
         # Start batch processing immediately
         await process_batch(batch_id)
@@ -579,7 +618,7 @@ async def get_notion_status():
 # Startup logic moved to lifespan handler above
 
 async def process_batch(batch_id: str):
-    """Process all files in a batch sequentially"""
+    """Process all files in a batch with concurrency control"""
     async with batch_processing_lock:
         batch_job = active_batches.get(batch_id)
         if not batch_job or batch_job.is_processing:
@@ -603,86 +642,124 @@ async def process_batch(batch_id: str):
             "files": [f.to_dict() for f in batch_job.files]
         })
         
-        # Process each file sequentially
-        for i, batch_file in enumerate(batch_job.files):
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_JOBS)
+        
+        async def process_single_file(i: int, batch_file: BatchFile):
             if batch_file.status != FileStatus.QUEUED:
-                continue
+                return
+
+            async with semaphore:
+                batch_job.current_file_index = i # Update roughly to current
+                batch_file.status = FileStatus.PROCESSING
+                await database.update_file_status(batch_file.id, "processing")
                 
-            batch_job.current_file_index = i
-            batch_file.status = FileStatus.PROCESSING
-            
-            # Send file processing start
-            await websocket.send_json({
-                "type": "file_start",
-                "file_id": batch_file.id,
-                "file_name": batch_file.original_name,
-                "file_index": i
-            })
-            
-            try:
-                # Process the file
-                async for update in transcriber.transcribe_with_progress(
-                    batch_file.file_path, 
-                    original_path=batch_file.original_path
-                ):
-                    # Update file progress
-                    if "progress" in update:
-                        batch_file.progress = update["progress"]
-                    
-                    # Send progress update
-                    update["type"] = "file_progress"
-                    update["file_id"] = batch_file.id
-                    update["file_index"] = i
-                    await websocket.send_json(update)
-                    
-                    # Check if completed
-                    if update.get("status") == "completed":
-                        batch_file.status = FileStatus.COMPLETED
-                        batch_file.transcript_path = update.get("output_file")
-                        batch_job.completed_files += 1
-                        break
-                    elif update.get("status") == "error":
-                        batch_file.status = FileStatus.ERROR
-                        batch_file.error_message = update.get("error")
-                        batch_job.failed_files += 1
-                        break
-                        
-            except Exception as e:
-                logger.error(f"Error processing file {batch_file.original_name}: {e}")
-                batch_file.status = FileStatus.ERROR
-                batch_file.error_message = str(e)
-                batch_job.failed_files += 1
-                
-                # Send error update
+                # Send file processing start
                 await websocket.send_json({
-                    "type": "file_progress",
-                    "status": "error",
-                    "error": str(e),
+                    "type": "file_start",
                     "file_id": batch_file.id,
+                    "file_name": batch_file.original_name,
                     "file_index": i
                 })
-            
-            # Send file completion status
-            completion_data = {
-                "type": "file_complete",
-                "file_id": batch_file.id,
-                "status": batch_file.status.value,
-                "error_message": batch_file.error_message,
-                "transcript_path": str(batch_file.transcript_path) if batch_file.transcript_path else None
-            }
-            
-            # Include transcript content for client-side saving
-            if batch_file.status == FileStatus.COMPLETED and batch_file.transcript_path:
+                
                 try:
-                    with open(batch_file.transcript_path, 'r', encoding='utf-8') as f:
-                        completion_data["transcript"] = f.read()
+                    # Process the file
+                    async for update in transcriber.transcribe_with_progress(
+                        batch_file.file_path, 
+                        original_path=batch_file.original_path
+                    ):
+                        # Update file progress
+                        if "progress" in update:
+                            batch_file.progress = update["progress"]
+                        
+                        # Send progress update
+                        update["type"] = "file_progress"
+                        update["file_id"] = batch_file.id
+                        update["file_index"] = i
+                        await websocket.send_json(update)
+                        
+                        # Update DB periodically (e.g. every 10%)
+                        if batch_file.progress % 10 == 0:
+                            await database.update_file_status(batch_file.id, "processing", progress=batch_file.progress)
+                        
+                        # Check if completed
+                        if update.get("status") == "completed":
+                            batch_file.status = FileStatus.COMPLETED
+                            batch_file.transcript_path = update.get("output_file")
+                            batch_job.completed_files += 1
+                            break
+                        elif update.get("status") == "error":
+                            batch_file.status = FileStatus.ERROR
+                            batch_file.error_message = update.get("error")
+                            batch_job.failed_files += 1
+                            await database.update_file_status(
+                                batch_file.id, "error", 
+                                error_message=batch_file.error_message
+                            )
+                            break
+                            
                 except Exception as e:
-                    logger.error(f"Failed to read transcript for {batch_file.original_name}: {e}")
-            
-            await websocket.send_json(completion_data)
+                    logger.error(f"Error processing file {batch_file.original_name}: {e}")
+                    batch_file.status = FileStatus.ERROR
+                    batch_file.error_message = str(e)
+                    batch_job.failed_files += 1
+                    await database.update_file_status(
+                        batch_file.id, "error", 
+                        error_message=batch_file.error_message
+                    )
+                    
+                    # Send error update
+                    await websocket.send_json({
+                        "type": "file_progress",
+                        "status": "error",
+                        "error": str(e),
+                        "file_id": batch_file.id,
+                        "file_index": i
+                    })
+                
+                # Send file completion status
+                completion_data = {
+                    "type": "file_complete",
+                    "file_id": batch_file.id,
+                    "status": batch_file.status.value,
+                    "error_message": batch_file.error_message,
+                    "transcript_path": str(batch_file.transcript_path) if batch_file.transcript_path else None
+                }
+                
+                if batch_file.status == FileStatus.COMPLETED:
+                    await database.update_file_status(
+                        batch_file.id, "completed", 
+                        transcript_path=str(batch_file.transcript_path),
+                        progress=100
+                    )
+                    await database.update_batch_stats(
+                        batch_id, batch_job.completed_files, batch_job.failed_files
+                    )
+                
+                # Include transcript content for client-side saving
+                if batch_file.status == FileStatus.COMPLETED and batch_file.transcript_path:
+                    try:
+                        with open(batch_file.transcript_path, 'r', encoding='utf-8') as f:
+                            completion_data["transcript"] = f.read()
+                    except Exception as e:
+                        logger.error(f"Failed to read transcript for {batch_file.original_name}: {e}")
+                
+                await websocket.send_json(completion_data)
+
+        # Create tasks for all queued files
+        tasks = []
+        for i, batch_file in enumerate(batch_job.files):
+            if batch_file.status == FileStatus.QUEUED:
+                tasks.append(process_single_file(i, batch_file))
+        
+        # Run all tasks
+        if tasks:
+            await asyncio.gather(*tasks)
         
         # Send batch completion
         batch_job.is_processing = False
+        await database.update_batch_stats(
+            batch_id, batch_job.completed_files, batch_job.failed_files
+        )
         await websocket.send_json({
             "type": "batch_complete",
             "batch_id": batch_id,

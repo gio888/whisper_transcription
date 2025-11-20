@@ -26,3 +26,4 @@ MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
 ALLOWED_EXTENSIONS = {".m4a", ".mp3", ".wav", ".aac", ".mp4"}
 
 CLEANUP_INTERVAL = 3600  # Clean temp files every hour
+MAX_CONCURRENT_JOBS = 2  # Number of files to process in parallel

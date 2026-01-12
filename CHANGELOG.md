@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Single-upload validation now rejects missing/unsupported extensions with consistent 400 responses; oversized uploads return 400 with clear messaging (Session 2025-11-20).
 
 ### Fixed
+- **Server Startup Error**: Fixed `ModuleNotFoundError: No module named 'httpx'` by moving test-only WebSocketTestSession import and patching code from app.py to tests/conftest.py (Session 2026-01-12).
 - Batch WebSocket messages remain JSON-serializable and test client accepts timeout parameter; pytest runs use mock/fallback transcription to avoid missing-binary errors; smoke tests run without pytest return-value warnings (Session 2025-11-20).
 
 ## [2.4.0] - 2025-01-17

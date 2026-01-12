@@ -1,11 +1,40 @@
 """Shared test fixtures and configuration."""
+import inspect
+import json
 import pytest
 import tempfile
 import shutil
 from pathlib import Path
+from queue import Empty
+from typing import Optional
 from unittest.mock import MagicMock, AsyncMock
 import sys
 import os
+
+from starlette.testclient import WebSocketTestSession
+
+# Add optional timeout support for WebSocketTestSession.receive_json
+if "timeout" not in inspect.signature(WebSocketTestSession.receive_json).parameters:
+    _original_receive_json = WebSocketTestSession.receive_json
+
+    def _receive_json_with_timeout(self, mode: str = "text", timeout: Optional[float] = None):
+        assert mode in ["text", "binary"]
+        try:
+            message = self._send_queue.get(timeout=timeout)
+        except Empty as exc:
+            raise TimeoutError("WebSocket receive timed out") from exc
+
+        if isinstance(message, BaseException):
+            raise message
+
+        self._raise_on_close(message)
+        if mode == "text":
+            text = message["text"]
+        else:
+            text = message["bytes"].decode("utf-8")
+        return json.loads(text)
+
+    WebSocketTestSession.receive_json = _receive_json_with_timeout
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

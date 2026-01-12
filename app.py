@@ -8,8 +8,6 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
-from queue import Empty
-import inspect
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -19,7 +17,6 @@ from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect, H
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.testclient import WebSocketTestSession
 import aiofiles
 
 from config import UPLOAD_DIR, STATIC_DIR, MAX_FILE_SIZE, ALLOWED_EXTENSIONS, MAX_CONCURRENT_JOBS
@@ -31,29 +28,6 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s:%(name)s:%(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# Add optional timeout support for WebSocketTestSession.receive_json used in tests
-if "timeout" not in inspect.signature(WebSocketTestSession.receive_json).parameters:
-    _original_receive_json = WebSocketTestSession.receive_json
-
-    def _receive_json_with_timeout(self, mode: str = "text", timeout: Optional[float] = None):
-        assert mode in ["text", "binary"]
-        try:
-            message = self._send_queue.get(timeout=timeout)
-        except Empty as exc:
-            raise TimeoutError("WebSocket receive timed out") from exc
-
-        if isinstance(message, BaseException):
-            raise message
-
-        self._raise_on_close(message)
-        if mode == "text":
-            text = message["text"]
-        else:
-            text = message["bytes"].decode("utf-8")
-        return json.loads(text)
-
-    WebSocketTestSession.receive_json = _receive_json_with_timeout
 
 # Import meeting analyzer if API keys are configured
 try:

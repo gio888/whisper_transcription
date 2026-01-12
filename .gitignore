@@ -57,8 +57,11 @@ dist/
 tmp/
 temp/
 
-# Claude Code settings (contains personal paths)
-.claude/
+# Claude Code - local/personal files only (commands/ and settings.json are committed)
+.claude/settings.local.json
+.claude/CURRENT_STATE.md
+.claude/snapshots/
+CLAUDE.local.md
 
 # Business/Analysis data (may contain sensitive information)
 analysis_results/

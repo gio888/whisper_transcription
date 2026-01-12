@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Accept `.ogg` and `.flac` uploads (Session 2025-11-20).
+- Created `plans/` folder for permanent session memory and implementation plans (Session 2026-01-12).
 
 ### Changed
 - Single-upload validation now rejects missing/unsupported extensions with consistent 400 responses; oversized uploads return 400 with clear messaging (Session 2025-11-20).
